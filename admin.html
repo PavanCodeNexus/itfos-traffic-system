@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ITFOS – Admin Portal</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@700;900&display=swap');
+:root{
+  --bg:#0B1220;--surface:#111827;--card:#1a2235;--border:#1e2d45;
+  --primary:#2563EB;--success:#22C55E;--warning:#F59E0B;--danger:#EF4444;--accent:#7C3AED;
+  --text:#F8FAFC;--muted:#94A3B8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:var(--primary);border-radius:2px;}
+
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);height:56px;
+  display:flex;align-items:center;justify-content:space-between;padding:0 18px;flex-shrink:0;}
+.logo{font-family:'Orbitron',monospace;font-size:.9rem;font-weight:900;color:var(--primary);letter-spacing:2px;}
+.logo span{color:#06B6D4;}
+.tb-center{display:flex;align-items:center;gap:14px;}
+.tb-stat{text-align:center;}
+.tb-v{font-family:'Orbitron',monospace;font-size:.85rem;font-weight:700;color:var(--primary);}
+.tb-l{font-size:.48rem;color:var(--muted);text-transform:uppercase;}
+.fb-badge{font-size:.6rem;padding:4px 10px;border-radius:20px;font-weight:600;display:flex;align-items:center;gap:4px;}
+.fb-ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.2);}
+.fb-load{background:rgba(245,158,11,.1);color:var(--warning);border:1px solid rgba(245,158,11,.2);}
+.dot{width:5px;height:5px;border-radius:50%;background:currentColor;animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.tb-right{display:flex;align-items:center;gap:8px;}
+.scan-btn{padding:8px 14px;border-radius:8px;background:rgba(6,182,212,.15);
+  border:1px solid rgba(6,182,212,.4);color:#06B6D4;font-size:.68rem;font-weight:700;
+  cursor:pointer;font-family:'Inter',sans-serif;}
+.scan-btn:hover{background:rgba(6,182,212,.3);}
+.clear-btn{padding:6px 12px;border-radius:8px;background:rgba(239,68,68,.08);
+  border:1px solid rgba(239,68,68,.2);color:var(--danger);font-size:.65rem;font-weight:600;
+  cursor:pointer;font-family:'Inter',sans-serif;}
+.clear-btn:hover{background:rgba(239,68,68,.18);}
+.logout-btn{padding:6px 12px;border-radius:8px;background:rgba(148,163,184,.08);
+  border:1px solid var(--border);color:var(--muted);font-size:.65rem;font-weight:600;
+  cursor:pointer;font-family:'Inter',sans-serif;}
+.logout-btn:hover{border-color:var(--primary);color:var(--primary);}
+
+/* LOGIN */
+#loginScreen{flex:1;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:32px;width:100%;max-width:380px;}
+.lc-title{font-family:'Orbitron',monospace;font-size:1rem;font-weight:900;color:var(--primary);text-align:center;}
+.lc-sub{font-size:.68rem;color:var(--muted);text-align:center;margin-bottom:20px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:.62rem;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;}
+.field input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 13px;border-radius:8px;font-size:.82rem;font-family:'Inter',sans-serif;outline:none;}
+.field input:focus{border-color:var(--primary);}
+.login-btn{width:100%;padding:12px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--primary),#1d4ed8);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:'Inter',sans-serif;}
+.lc-err{font-size:.68rem;color:var(--danger);margin-top:5px;padding:6px 10px;background:rgba(239,68,68,.07);border-radius:6px;display:none;}
+.lc-hint{font-size:.6rem;color:var(--muted);text-align:center;margin-top:10px;}
+
+/* MAIN */
+#mainApp{display:none;flex:1;overflow:hidden;flex-direction:column;}
+.admin-grid{display:grid;grid-template-columns:280px 1fr 270px;height:100%;overflow:hidden;}
+.col{overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;}
+.col-left{background:var(--surface);border-right:1px solid var(--border);}
+.col-right{background:var(--surface);border-left:1px solid var(--border);}
+.col-label{font-size:.57rem;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;}
+
+.req-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;border-left:3px solid var(--primary);}
+.req-card.selected{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary);}
+.rc-top{display:flex;justify-content:space-between;margin-bottom:5px;}
+.rc-name{font-size:.8rem;font-weight:700;}
+.rc-vehicle{font-family:'Orbitron',monospace;font-size:.58rem;color:var(--primary);background:rgba(37,99,235,.1);padding:2px 7px;border-radius:6px;}
+.rc-route{font-size:.67rem;color:var(--muted);margin-bottom:6px;line-height:1.5;}
+.rc-route span{color:var(--text);}
+.rc-actions{display:flex;gap:4px;flex-wrap:wrap;}
+.rc-btn{padding:4px 9px;border-radius:6px;font-size:.54rem;font-weight:700;cursor:pointer;border:none;font-family:'Inter',sans-serif;}
+.rcb-y{background:rgba(245,158,11,.12);color:var(--warning);}
+.rcb-r{background:rgba(239,68,68,.12);color:var(--danger);}
+.rcb-b{background:rgba(37,99,235,.12);color:var(--primary);}
+.rcb-g{background:rgba(34,197,94,.12);color:var(--success);}
+.no-req{font-size:.68rem;color:var(--muted);text-align:center;padding:22px;line-height:1.7;}
+
+.sel-banner{background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:8px 12px;font-size:.68rem;color:var(--success);display:none;}
+.send-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.fs label{font-size:.57rem;font-weight:600;color:var(--muted);display:block;margin-bottom:3px;text-transform:uppercase;}
+.fs select,.fs textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-size:.72rem;font-family:'Inter',sans-serif;outline:none;margin-bottom:8px;}
+.fs textarea{resize:vertical;min-height:85px;line-height:1.55;}
+.send-btn{width:100%;padding:10px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--primary),#1d4ed8);color:#fff;font-weight:700;font-size:.72rem;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:6px;}
+.bcast-btn{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);font-weight:600;font-size:.68rem;cursor:pointer;font-family:'Inter',sans-serif;}
+.send-st{font-size:.62rem;text-align:center;margin-top:6px;display:none;padding:5px;border-radius:6px;}
+.st-ok{color:var(--success);background:rgba(34,197,94,.07);}
+.st-err{color:var(--danger);background:rgba(239,68,68,.07);}
+
+.crowd-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 10px;}
+.crowd-card.hot{border-color:var(--danger);background:rgba(239,68,68,.05);}
+.crowd-card.warm{border-color:var(--warning);background:rgba(245,158,11,.05);}
+.cc-top{display:flex;justify-content:space-between;margin-bottom:5px;}
+.cc-loc{font-size:.68rem;font-weight:700;text-transform:capitalize;}
+.cc-total{font-family:'Orbitron',monospace;font-size:.7rem;color:var(--primary);}
+.cc-bars{display:flex;gap:3px;height:6px;border-radius:3px;overflow:hidden;margin-bottom:5px;}
+.cc-legend{display:flex;gap:8px;font-size:.5rem;color:var(--muted);}
+.cc-legend span{display:flex;align-items:center;gap:3px;}
+.cc-dot{width:6px;height:6px;border-radius:50%;}
+
+.pred-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 10px;margin-bottom:6px;}
+.pred-card.high{border-color:var(--danger);background:rgba(239,68,68,.06);}
+.pred-card.moderate{border-color:var(--warning);background:rgba(245,158,11,.06);}
+.pred-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.pred-loc{font-size:.68rem;font-weight:700;text-transform:capitalize;}
+.pred-badge{font-size:.5rem;padding:2px 8px;border-radius:10px;font-weight:700;}
+.pred-badge.high{background:rgba(239,68,68,.18);color:var(--danger);}
+.pred-badge.moderate{background:rgba(245,158,11,.18);color:var(--warning);}
+.pred-badge.low{background:rgba(34,197,94,.18);color:var(--success);}
+.pred-detail{font-size:.56rem;color:var(--muted);line-height:1.5;}
+.pred-bar-wrap{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:5px;}
+.pred-bar-fill{height:100%;border-radius:2px;}
+
+.ix-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+.ixn{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px;text-align:center;}
+.ixn.low{border-color:var(--success);}.ixn.medium{border-color:var(--warning);}.ixn.high{border-color:var(--danger);}
+.ixn-id{font-size:.47rem;color:var(--muted);font-family:'Orbitron',monospace;}
+.ixn-v{font-family:'Orbitron',monospace;font-size:.78rem;}
+
+.al-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px;margin-bottom:5px;}
+.al-top{display:flex;justify-content:space-between;margin-bottom:3px;}
+.al-who{font-size:.63rem;font-weight:600;color:var(--primary);}
+.al-time{font-size:.5rem;color:var(--muted);}
+.al-msg{font-size:.6rem;color:var(--text);line-height:1.45;margin:3px 0;}
+.al-tag{font-size:.5rem;padding:2px 7px;border-radius:10px;font-weight:700;}
+.tag-cong{background:rgba(245,158,11,.12);color:var(--warning);}
+.tag-emrg{background:rgba(239,68,68,.12);color:var(--danger);}
+.tag-rert{background:rgba(37,99,235,.12);color:var(--primary);}
+.tag-clr{background:rgba(34,197,94,.12);color:var(--success);}
+.tag-info{background:rgba(124,58,237,.12);color:var(--accent);}
+
+.map-col{position:relative;overflow:hidden;}
+#adminMap{width:100%;height:100%;}
+.leaflet-container{background:#0b1220!important;}
+.map-legend{position:absolute;top:12px;left:12px;z-index:500;background:rgba(11,18,32,.92);border:1px solid rgba(37,99,235,.22);border-radius:10px;padding:10px 13px;}
+.ml-row{display:flex;align-items:center;gap:5px;margin-bottom:3px;font-size:.58rem;color:var(--muted);}
+.ml-dot{width:7px;height:7px;border-radius:50%;}
+.map-count{position:absolute;top:12px;right:12px;z-index:500;background:rgba(11,18,32,.92);border:1px solid rgba(37,99,235,.22);border-radius:10px;padding:10px 14px;text-align:center;}
+.map-count-v{font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:700;color:var(--primary);}
+
+.toast-wrap{position:fixed;top:66px;right:13px;z-index:9999;display:flex;flex-direction:column;gap:7px;}
+.toast{background:var(--card);border-radius:11px;padding:12px 14px;border-left:3px solid var(--success);box-shadow:0 4px 20px rgba(0,0,0,.5);max-width:265px;font-size:.68rem;}
+.toast b{display:block;margin-bottom:2px;font-size:.7rem;}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(6px);
+  z-index:5000;display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.show{display:flex;}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:18px;
+  padding:20px;width:100%;max-width:380px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.modal-close-x{position:absolute;top:14px;right:14px;width:28px;height:28px;
+  border-radius:50%;background:rgba(255,255,255,.05);border:none;color:var(--muted);cursor:pointer;font-size:.88rem;}
+
+@media(max-width:900px){
+  .admin-grid{grid-template-columns:1fr;grid-template-rows:auto 300px auto;}
+  .col-left,.col-right{max-height:320px;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">IT<span>FOS</span> — ADMIN</div>
+  <div class="tb-center">
+    <div class="tb-stat"><div class="tb-v" id="hReqs">0</div><div class="tb-l">Requests</div></div>
+    <div class="tb-stat"><div class="tb-v" id="hSent">0</div><div class="tb-l">Sent</div></div>
+    <div class="fb-badge fb-load" id="fbBadge"><div class="dot"></div><span id="fbTxt">Connecting…</span></div>
+  </div>
+  <div class="tb-right">
+    <button class="scan-btn" onclick="openScanner()">📷 Scan QR</button>
+    <button class="clear-btn" onclick="clearAllData()">🗑 Clear All Data</button>
+    <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
+  </div>
+</div>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="lc-title">ITFOS ADMIN</div>
+    <div class="lc-sub">Control Center — DSATM Bangalore</div>
+    <div class="field"><label>Username</label><input id="aUser" placeholder="admin" value="admin"></div>
+    <div class="field"><label>Password</label><input id="aPass" type="password" placeholder="admin123" value="admin123"></div>
+    <div class="lc-err" id="aErr"></div>
+    <button class="login-btn" onclick="doAdminLogin()">Login as Admin →</button>
+    <div class="lc-hint">admin / admin123</div>
+  </div>
+</div>
+
+<div id="mainApp">
+  <div class="admin-grid">
+    <div class="col col-left">
+      <div class="col-label">Live User Requests</div>
+      <div id="reqList"><div class="no-req">🔥 Waiting for user requests…</div></div>
+    </div>
+
+    <div class="map-col">
+      <div id="adminMap"></div>
+      <div class="map-legend">
+        <div class="ml-row"><div class="ml-dot" style="background:#22C55E;"></div>Clear</div>
+        <div class="ml-row"><div class="ml-dot" style="background:#F59E0B;"></div>Moderate</div>
+        <div class="ml-row"><div class="ml-dot" style="background:#EF4444;"></div>High</div>
+        <div class="ml-row"><div class="ml-dot" style="background:#7C3AED;"></div>User</div>
+      </div>
+      <div class="map-count">
+        <div class="map-count-v" id="mapUCount">0</div>
+        <div style="font-size:.5rem;color:var(--muted);">Active Users</div>
+      </div>
+    </div>
+
+    <div class="col col-right">
+      <div class="col-label">Send Advisory</div>
+      <div class="sel-banner" id="selBanner">Selected: <b id="selName">—</b></div>
+      <div class="send-card">
+        <div class="fs">
+          <label>Alert Type</label>
+          <select id="alertType" onchange="fillMsg()">
+            <option value="congestion">🚦 Traffic Congestion</option>
+            <option value="reroute">🔀 Reroute Advisory</option>
+            <option value="emergency">🚨 Emergency — Give Way</option>
+            <option value="clear">✅ Route Cleared</option>
+            <option value="info">ℹ️ Traffic Update</option>
+          </select>
+        </div>
+        <div class="fs">
+          <label>Message to User</label>
+          <textarea id="alertMsg" rows="5" placeholder="Select a user first…"></textarea>
+        </div>
+        <button class="send-btn" id="sendBtn" onclick="sendToSelected()">📤 Send to Selected User</button>
+        <button class="bcast-btn" onclick="sendToAll()">📢 Broadcast to All Active Users</button>
+        <div class="send-st" id="sendSt"></div>
+      </div>
+
+      <div class="col-label">👥 Crowd Reports</div>
+      <div id="crowdList"><div style="font-size:.62rem;color:var(--muted);text-align:center;padding:10px;">No crowd reports yet.</div></div>
+
+      <div class="col-label">🔮 AI Traffic Prediction</div>
+      <div class="send-card">
+        <div style="font-size:.6rem;color:var(--muted);margin-bottom:8px;line-height:1.5;">
+          Predicts next-hour congestion using frequency analysis of historical route submissions.
+        </div>
+        <button onclick="seedDemoHistory()" style="width:100%;padding:8px;border:1px solid rgba(124,58,237,.3);
+          border-radius:7px;background:rgba(124,58,237,.1);color:#7C3AED;font-size:.65rem;font-weight:700;
+          cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:6px;">
+          🌱 Seed Demo History (7 days)
+        </button>
+        <button onclick="runPrediction()" style="width:100%;padding:8px;border:none;border-radius:7px;
+          background:linear-gradient(135deg,#7C3AED,#5b21b6);color:#fff;font-size:.65rem;font-weight:700;
+          cursor:pointer;font-family:'Inter',sans-serif;">
+          🔮 Run Prediction Now
+        </button>
+        <div id="predictionResults" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="col-label">🔌 Live Hardware Sensors</div>
+      <div id="hwSensorBox" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;">
+        <div id="hwStatus" style="font-size:.6rem;color:var(--muted);text-align:center;padding:10px;">⏳ Waiting for Arduino data…</div>
+        <div id="hwReadings" style="display:none;">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;">
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:.5rem;color:var(--muted);text-transform:uppercase;">Road 1</div>
+              <div id="hwRoad1" style="font-family:'Orbitron',monospace;font-size:.95rem;font-weight:700;color:var(--primary);">—</div>
+              <div style="font-size:.48rem;color:var(--muted);">cm</div>
+            </div>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:.5rem;color:var(--muted);text-transform:uppercase;">Road 2</div>
+              <div id="hwRoad2" style="font-family:'Orbitron',monospace;font-size:.95rem;font-weight:700;color:var(--primary);">—</div>
+              <div style="font-size:.48rem;color:var(--muted);">cm</div>
+            </div>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:.5rem;color:var(--muted);text-transform:uppercase;">Road 3</div>
+              <div id="hwRoad3" style="font-family:'Orbitron',monospace;font-size:.95rem;font-weight:700;color:var(--primary);">—</div>
+              <div style="font-size:.48rem;color:var(--muted);">cm</div>
+            </div>
+          </div>
+          <div style="background:linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,197,94,.04));border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:10px;text-align:center;margin-bottom:8px;">
+            <div style="font-size:.5rem;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">🚦 Hardware Priority</div>
+            <div id="hwPriority" style="font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:900;color:var(--success);">—</div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <div id="hwLiveDot" style="width:7px;height:7px;border-radius:50%;background:var(--success);"></div>
+              <span style="font-size:.55rem;color:var(--muted);">LIVE from Arduino</span>
+            </div>
+            <span id="hwLastUpdate" style="font-size:.52rem;color:var(--muted);">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-label">Bangalore Traffic Grid</div>
+      <div class="ix-grid" id="ixGrid"></div>
+
+      <div class="col-label">Alert History</div>
+      <div id="alertLog"><div style="font-size:.65rem;color:var(--muted);text-align:center;padding:12px;">No alerts sent yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- QR SCANNER MODAL -->
+<div id="scanModalBg" class="modal-overlay">
+  <div class="modal-box">
+    <button class="modal-close-x" onclick="closeScanner()">✕</button>
+    <div style="font-family:'Orbitron',monospace;font-size:.85rem;font-weight:900;color:#06B6D4;margin-bottom:3px;">📷 SCAN VEHICLE QR</div>
+    <div style="font-size:.67rem;color:var(--muted);margin-bottom:14px;">Point camera at a user's ITFOS QR code</div>
+    <div id="qrReaderBox" style="border-radius:12px;overflow:hidden;background:#000;min-height:220px;
+      display:flex;align-items:center;justify-content:center;"></div>
+    <div id="scanStatus" style="font-size:.66rem;color:var(--muted);text-align:center;margin-top:10px;"></div>
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
+      <div style="font-size:.6rem;color:var(--muted);margin-bottom:6px;">Camera not working? Enter ID manually:</div>
+      <div style="display:flex;gap:6px;">
+        <input id="manualUidInput" placeholder="e.g. u1721234567" style="flex:1;background:var(--bg);
+          border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;
+          font-size:.72rem;font-family:'Inter',sans-serif;outline:none;">
+        <button onclick="lookupManualUid()" style="padding:8px 14px;border:none;border-radius:8px;
+          background:var(--primary);color:#fff;font-size:.68rem;font-weight:700;cursor:pointer;
+          font-family:'Inter',sans-serif;">Lookup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCANNED USER RESULT MODAL -->
+<div id="scanResultBg" class="modal-overlay">
+  <div class="modal-box" style="border-color:var(--success);text-align:left;">
+    <button class="modal-close-x" onclick="closeScanResult()">✕</button>
+    <div style="text-align:center;font-size:2rem;margin-bottom:6px;">✅</div>
+    <div style="font-family:'Orbitron',monospace;font-size:.8rem;font-weight:900;color:var(--success);
+      text-align:center;margin-bottom:14px;">VEHICLE IDENTIFIED</div>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;">
+      <div style="font-size:.58rem;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">Owner Name</div>
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:8px;" id="scanName">—</div>
+      <div style="font-size:.58rem;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">Vehicle Number</div>
+      <div style="font-family:'Orbitron',monospace;font-size:.75rem;color:var(--primary);margin-bottom:8px;" id="scanVehicle">—</div>
+      <div style="font-size:.58rem;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">Current Route</div>
+      <div style="font-size:.7rem;" id="scanRoute">No active route</div>
+    </div>
+    <button onclick="jumpToScannedUser()" style="width:100%;padding:10px;border:none;border-radius:8px;
+      background:linear-gradient(135deg,var(--primary),#1d4ed8);color:#fff;font-weight:700;font-size:.75rem;
+      cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:8px;">📍 Jump to Vehicle on Map</button>
+    <button onclick="closeScanResult()" style="width:100%;padding:9px;border:1px solid var(--border);
+      border-radius:8px;background:transparent;color:var(--muted);font-size:.7rem;cursor:pointer;
+      font-family:'Inter',sans-serif;">Close</button>
+  </div>
+</div>
+
+<script>
+// ═══ FIREBASE ═══
+const firebaseConfig = {
+  apiKey: "AIzaSyCRLNuOiSZmzMlnsq1b-wvlcxdca_IJPXw",
+  authDomain: "itfos-6aa1d.firebaseapp.com",
+  databaseURL: "https://itfos-6aa1d-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "itfos-6aa1d",
+  storageBucket: "itfos-6aa1d.firebasestorage.app",
+  messagingSenderId: "332861964305",
+  appId: "1:332861964305:web:23792f6456be4a5e81f1b0"
+};
+firebase.initializeApp(firebaseConfig);
+const fdb = firebase.database();
+
+fdb.ref('.info/connected').on('value', s => {
+  const b=document.getElementById('fbBadge'), t=document.getElementById('fbTxt');
+  if(s.val()){b.className='fb-badge fb-ok';t.textContent='● Live';}
+  else{b.className='fb-badge fb-load';t.textContent='○ Connecting…';}
+});
+
+const KEY = 'ITFOS_DSATM_ECE_2025_PAVAN_SECURE';
+const dec = s => { try { return decodeURIComponent(atob(s).split('').map((c,i) => String.fromCharCode(c.charCodeAt(0)^KEY.charCodeAt(i%KEY.length))).join('')); } catch { return s; } };
+
+let aMap=null, mapMarkers=[], selectedUid=null, selectedReqData=null;
+let sentAlerts=[], sentCount=0, activeRequests={};
+const CROWD_EXPIRY = 5*60*1000;
+
+const AREAS = {
+  'mg road':{lat:12.9757,lng:77.6064,traffic:'high'},'koramangala':{lat:12.9352,lng:77.6245,traffic:'medium'},
+  'indiranagar':{lat:12.9784,lng:77.6408,traffic:'high'},'whitefield':{lat:12.9698,lng:77.7499,traffic:'high'},
+  'jayanagar':{lat:12.9299,lng:77.5826,traffic:'low'},'silk board':{lat:12.9172,lng:77.6231,traffic:'high'},
+  'hebbal':{lat:13.0351,lng:77.5972,traffic:'medium'},'hosur road':{lat:12.8700,lng:77.6300,traffic:'high'},
+  'outer ring road':{lat:12.9350,lng:77.6950,traffic:'high'},'electronic_city':{lat:12.8458,lng:77.6634,traffic:'medium'},
+  'yelahanka':{lat:13.1003,lng:77.5963,traffic:'low'},
+};
+
+function doAdminLogin(){
+  const u=document.getElementById('aUser').value, p=document.getElementById('aPass').value;
+  const err=document.getElementById('aErr');
+  if(u!=='admin'||p!=='admin123'){err.textContent='Invalid credentials';err.style.display='block';return;}
+  err.style.display='none';
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainApp').style.display='flex';
+  document.getElementById('mainApp').style.flexDirection='column';
+  document.getElementById('mainApp').style.flex='1';
+  setTimeout(initAdminMap,100);
+  renderIxGrid({});
+  startFirebaseListeners();
+}
+function adminLogout(){
+  fdb.ref('requests').off();fdb.ref('crowd_reports').off();
+  if(aMap){aMap.remove();aMap=null;}
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('mainApp').style.display='none';
+  selectedUid=null;selectedReqData=null;activeRequests={};
+}
+
+function clearAllData(){
+  if(!confirm('⚠ This will DELETE ALL users, routes, notifications and crowd reports from Firebase.\n\nBoth User and Admin portals will be reset.\n\nContinue?'))return;
+  fdb.ref('users').remove();
+  fdb.ref('requests').remove();
+  fdb.ref('notifications').remove();
+  fdb.ref('crowd_reports').remove();
+  fdb.ref('crowd_alerted').remove();
+  fdb.ref('route_history').remove();
+  sentAlerts=[];sentCount=0;selectedUid=null;selectedReqData=null;activeRequests={};
+  document.getElementById('hSent').textContent='0';
+  document.getElementById('alertLog').innerHTML=`<div style="font-size:.65rem;color:var(--muted);text-align:center;padding:12px;">No alerts sent yet.</div>`;
+  document.getElementById('selBanner').style.display='none';
+  showToast('🗑 All Data Cleared','Firebase database has been wiped clean.');
+}
+
+function startFirebaseListeners(){
+  fdb.ref('requests').on('value', snap => {
+    const data=snap.val()||{};
+    activeRequests=data;
+    const keys=Object.keys(data);
+    document.getElementById('hReqs').textContent=keys.length;
+    document.getElementById('mapUCount').textContent=keys.length;
+    renderReqList(data);
+    updateMapMarkers(data);
+    renderIxGrid(data);
+  });
+  fdb.ref('requests').on('child_added', snap => {
+    const r=snap.val();if(!r)return;
+    if(Date.now()-r.timestamp<15000)showToast(`🆕 New Request — ${safeD(r.name)}`,`${safeD(r.start)} → ${safeD(r.dest)}`);
+  });
+  fdb.ref('crowd_reports').on('value', snap => renderCrowdReports(snap.val()||{}));
+  setInterval(()=>fdb.ref('crowd_reports').once('value',snap=>renderCrowdReports(snap.val()||{})),20000);
+}
+
+function initAdminMap(){
+  if(aMap)return;
+  aMap=L.map('adminMap',{center:[12.9716,77.5946],zoom:12,zoomControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(aMap);
+  L.control.zoom({position:'bottomright'}).addTo(aMap);
+  [{p:[[12.9897,77.5527],[12.9773,77.5706],[12.9757,77.6064]],c:'#EF4444',w:4,t:'Outer Ring Road — HIGH'},
+   {p:[[12.9172,77.6231],[12.9071,77.6665]],c:'#EF4444',w:5,t:'Silk Board — HIGH'},
+   {p:[[12.9773,77.5706],[12.9716,77.5946],[12.9784,77.6408]],c:'#F59E0B',w:3,t:'MG Road — MODERATE'},
+   {p:[[13.0351,77.5972],[12.9897,77.5527],[12.9255,77.5468]],c:'#22C55E',w:3,t:'Tumkur Road — CLEAR'},
+  ].forEach(r=>L.polyline(r.p,{color:r.c,weight:r.w,opacity:.8}).bindTooltip(r.t,{sticky:true,className:'blr-tip'}).addTo(aMap));
+  Object.entries(AREAS).forEach(([k,v])=>{
+    const c=v.traffic==='high'?'#EF4444':v.traffic==='medium'?'#F59E0B':'#22C55E';
+    L.circleMarker([v.lat,v.lng],{radius:4,color:c,fillColor:c,fillOpacity:.5,weight:1})
+      .bindTooltip(k.split(' ').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '),{className:'blr-tip'}).addTo(aMap);
+  });
+  const s=document.createElement('style');
+  s.textContent=`.blr-tip{background:#131e2e;color:#f1f5f9;border:1px solid #1a2840;border-radius:6px;font-family:'Inter',sans-serif;font-size:11px;padding:3px 8px;}`;
+  document.head.appendChild(s);
+  setTimeout(()=>aMap.invalidateSize(),200);
+}
+
+function updateMapMarkers(reqs){
+  mapMarkers.forEach(m=>aMap&&aMap.removeLayer(m));mapMarkers=[];
+  if(!aMap)return;
+  Object.values(reqs).forEach(r=>{
+    const ic=L.divIcon({html:`<div style="background:#7C3AED;width:13px;height:13px;border-radius:50%;border:2px solid #fff;"></div>`,iconSize:[13,13],iconAnchor:[6,6]});
+    const m=L.marker([r.startLat,r.startLng],{icon:ic}).bindPopup(`<b>${safeD(r.name)}</b><br>${safeD(r.vehicle)}<br>→ ${safeD(r.dest)}`).addTo(aMap);
+    mapMarkers.push(m);
+  });
+}
+
+function renderReqList(reqs){
+  const el=document.getElementById('reqList');
+  const keys=Object.keys(reqs);
+  if(!keys.length){el.innerHTML=`<div class="no-req">🔥 Waiting for user requests…</div>`;return;}
+  el.innerHTML=keys.map(uid=>{
+    const r=reqs[uid];
+    const isSel=selectedUid===uid;
+    return `<div class="req-card ${isSel?'selected':''}" id="rc_${uid}">
+      <div class="rc-top"><div class="rc-name">${safeD(r.name)}</div><div class="rc-vehicle">${safeD(r.vehicle)}</div></div>
+      <div class="rc-route">📍 <span>${safeD(r.start)}</span><br>🏁 <span>${safeD(r.dest)}</span></div>
+      <div class="rc-actions">
+        <button class="rc-btn rcb-y" onclick="quickSelect('${uid}','congestion')">🚦 Congestion</button>
+        <button class="rc-btn rcb-r" onclick="quickSelect('${uid}','emergency')">🚨 Emergency</button>
+        <button class="rc-btn rcb-b" onclick="quickSelect('${uid}','reroute')">🔀 Reroute</button>
+        <button class="rc-btn rcb-g" onclick="quickSelect('${uid}','clear')">✅ Clear</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function quickSelect(uid,type){
+  selectedUid=uid;selectedReqData=activeRequests[uid]||null;
+  document.getElementById('selBanner').style.display='block';
+  document.getElementById('selName').textContent=selectedReqData?safeD(selectedReqData.name):'User';
+  document.getElementById('alertType').value=type;
+  fillMsg();
+  document.querySelectorAll('.req-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('rc_'+uid)?.classList.add('selected');
+}
+
+function fillMsg(){
+  const type=document.getElementById('alertType').value;
+  const start=selectedReqData?safeD(selectedReqData.start):'your location';
+  const dest=selectedReqData?safeD(selectedReqData.dest):'your destination';
+  const msgs={
+    congestion:`⚠️ High congestion detected on your route from ${start} to ${dest}. Please slow down and follow advisory.`,
+    emergency:`🚨 Emergency vehicle approaching near ${start}. Pull over immediately and give way!`,
+    reroute:`🔀 Congestion near ${start}. Suggested alternate route via Outer Ring Road → ${dest}.`,
+    clear:`✅ Traffic on your route from ${start} to ${dest} is now CLEAR. Proceed normally.`,
+    info:`ℹ️ Moderate traffic detected near ${start}. Plan your journey accordingly.`,
+  };
+  document.getElementById('alertMsg').value=msgs[type]||'';
+}
+
+async function sendToSelected(){
+  if(!selectedUid){showSendSt('⚠ Select a user first.','err');return;}
+  const msg=document.getElementById('alertMsg').value.trim();
+  const type=document.getElementById('alertType').value;
+  if(!msg){showSendSt('⚠ Write a message first.','err');return;}
+  await fdb.ref('notifications/'+selectedUid).push({type,message:msg,timestamp:Date.now()});
+  logAlert(safeD(selectedReqData?.name||selectedUid),type,msg);
+  showSendSt('✅ Alert sent!','ok');
+  showToast('✅ Alert Sent',`${type.toUpperCase()} delivered.`);
+}
+
+async function sendToAll(){
+  const msg=document.getElementById('alertMsg').value.trim();
+  const type=document.getElementById('alertType').value;
+  if(!msg){showSendSt('⚠ Write a message first.','err');return;}
+  const keys=Object.keys(activeRequests);
+  if(!keys.length){showSendSt('⚠ No active users.','err');return;}
+  await Promise.all(keys.map(uid=>fdb.ref('notifications/'+uid).push({type,message:msg,timestamp:Date.now()})));
+  keys.forEach(uid=>logAlert(safeD(activeRequests[uid]?.name||uid),type,msg));
+  showSendSt(`✅ Broadcast sent to ${keys.length} users!`,'ok');
+}
+
+function showSendSt(msg,type){
+  const el=document.getElementById('sendSt');
+  el.textContent=msg;el.className='send-st '+(type==='ok'?'st-ok':'st-err');el.style.display='block';
+  setTimeout(()=>el.style.display='none',4000);
+}
+
+function logAlert(name,type,msg){
+  sentCount++;document.getElementById('hSent').textContent=sentCount;
+  const now=new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});
+  sentAlerts.unshift({name,type,msg,time:now});if(sentAlerts.length>25)sentAlerts.pop();
+  const tagClass={congestion:'tag-cong',emergency:'tag-emrg',reroute:'tag-rert',clear:'tag-clr',info:'tag-info'};
+  document.getElementById('alertLog').innerHTML=sentAlerts.map(a=>`<div class="al-card"><div class="al-top"><div class="al-who">→ ${a.name}</div><div class="al-time">${a.time}</div></div><div class="al-msg">${a.msg.slice(0,80)}…</div><span class="al-tag ${tagClass[a.type]}">${a.type.toUpperCase()}</span></div>`).join('');
+}
+
+function renderCrowdReports(data){
+  const el=document.getElementById('crowdList');
+  const now=Date.now();
+  const summary=[];
+  Object.keys(data).forEach(loc=>{
+    const recent=Object.values(data[loc]||{}).filter(r=>now-r.timestamp<CROWD_EXPIRY);
+    if(!recent.length)return;
+    summary.push({loc,heavy:recent.filter(r=>r.status==='heavy').length,moderate:recent.filter(r=>r.status==='moderate').length,clear:recent.filter(r=>r.status==='clear').length,total:recent.length});
+  });
+  summary.sort((a,b)=>b.heavy-a.heavy||b.total-a.total);
+  if(!summary.length){el.innerHTML=`<div style="font-size:.62rem;color:var(--muted);text-align:center;padding:10px;">No crowd reports yet.</div>`;return;}
+  el.innerHTML=summary.slice(0,8).map(s=>{
+    const cls=s.heavy>=3?'hot':s.moderate>=2?'warm':'';
+    const name=s.loc.replace(/_/g,' ').split(' ').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
+    const tw=Math.max(s.heavy+s.moderate+s.clear,1);
+    return `<div class="crowd-card ${cls}">
+      <div class="cc-top"><div class="cc-loc">📍 ${name}</div><div class="cc-total">${s.total} reports</div></div>
+      <div class="cc-bars">
+        ${s.clear>0?`<div style="width:${s.clear/tw*100}%;background:#22C55E;"></div>`:''}
+        ${s.moderate>0?`<div style="width:${s.moderate/tw*100}%;background:#F59E0B;"></div>`:''}
+        ${s.heavy>0?`<div style="width:${s.heavy/tw*100}%;background:#EF4444;"></div>`:''}
+      </div>
+      <div class="cc-legend">
+        <span><div class="cc-dot" style="background:#22C55E;"></div>${s.clear}</span>
+        <span><div class="cc-dot" style="background:#F59E0B;"></div>${s.moderate}</span>
+        <span><div class="cc-dot" style="background:#EF4444;"></div>${s.heavy}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function seedDemoHistory(){
+  const btn=event.target;
+  btn.disabled=true;btn.textContent='⏳ Clearing old history…';
+  fdb.ref('route_history').remove().then(()=>{
+    btn.textContent='⏳ Generating fresh history…';
+    const locations=['koramangala','whitefield','yelahanka','silk_board','electronic_city'];
+    const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const entries=[];
+    locations.forEach(loc=>{
+      const morningPeak=8+Math.floor(Math.random()*3);
+      const eveningPeak=18+Math.floor(Math.random()*3);
+      days.forEach(day=>{
+        for(let i=0;i<5+Math.floor(Math.random()*5);i++)entries.push({location:loc,hour:morningPeak,day,timestamp:Date.now()-Math.random()*7*86400000});
+        for(let i=0;i<5+Math.floor(Math.random()*5);i++)entries.push({location:loc,hour:eveningPeak,day,timestamp:Date.now()-Math.random()*7*86400000});
+        for(let i=0;i<3;i++)entries.push({location:loc,hour:Math.floor(Math.random()*24),day,timestamp:Date.now()-Math.random()*7*86400000});
+      });
+    });
+    const updates={};
+    entries.forEach(e=>{const key=fdb.ref('route_history').push().key;updates['route_history/'+key]=e;});
+    return fdb.ref().update(updates).then(()=>entries.length);
+  }).then(count=>{
+    btn.disabled=false;btn.textContent='✅ Demo History Seeded! ('+count+' entries)';
+    showToast('🌱 Demo Data Seeded',`${count} realistic entries across 5 locations, 7 days.`);
+    setTimeout(()=>{btn.textContent='🌱 Seed Demo History (7 days)';},3000);
+  }).catch(err=>{btn.disabled=false;btn.textContent='❌ Error — try again';console.error(err);});
+}
+
+function runPrediction(){
+  const resultsEl=document.getElementById('predictionResults');
+  resultsEl.innerHTML=`<div style="font-size:.6rem;color:var(--muted);text-align:center;padding:8px;">⏳ Analysing historical patterns…</div>`;
+  fdb.ref('route_history').once('value',snap=>{
+    const data=snap.val()||{};
+    const allEntries=Object.values(data);
+    if(!allEntries.length){resultsEl.innerHTML=`<div style="font-size:.6rem;color:var(--muted);text-align:center;padding:8px;">No historical data yet. Click "Seed Demo History" first.</div>`;return;}
+    const byLocation={};
+    allEntries.forEach(e=>{if(!byLocation[e.location])byLocation[e.location]=[];byLocation[e.location].push(e);});
+    const now=new Date();
+    const nextHour=(now.getHours()+1)%24;
+    const predictions=Object.keys(byLocation).map(loc=>{
+      const locHistory=byLocation[loc];
+      const totalRequests=locHistory.length;
+      const hourCounts={};
+      locHistory.forEach(h=>{hourCounts[h.hour]=(hourCounts[h.hour]||0)+1;});
+      const avgPerHour=totalRequests/24;
+      const nextHourCount=hourCounts[nextHour]||0;
+      const ratio=avgPerHour>0?nextHourCount/avgPerHour:0;
+      let prediction='LOW',confidence=Math.round(Math.min(40,ratio*15));
+      if(ratio>=3){prediction='HIGH';confidence=Math.round(Math.min(95,ratio*18));}
+      else if(ratio>=1.5){prediction='MODERATE';confidence=Math.round(Math.min(80,ratio*25));}
+      return{location:loc,nextHour,prediction,confidence,sampleSize:totalRequests,nextHourCount};
+    });
+    predictions.sort((a,b)=>{const order={HIGH:0,MODERATE:1,LOW:2};return order[a.prediction]-order[b.prediction]||b.confidence-a.confidence;});
+    const hourLabel=h=>{const period=h>=12?'PM':'AM';const h12=h%12===0?12:h%12;return`${h12}:00 ${period}`;};
+    resultsEl.innerHTML=predictions.map(p=>{
+      const locName=p.location.replace(/_/g,' ').split(' ').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
+      const cls=p.prediction==='HIGH'?'high':p.prediction==='MODERATE'?'moderate':'';
+      const barColor=p.prediction==='HIGH'?'#EF4444':p.prediction==='MODERATE'?'#F59E0B':'#22C55E';
+      return`<div class="pred-card ${cls}">
+        <div class="pred-top"><div class="pred-loc">📍 ${locName}</div><div class="pred-badge ${cls||'low'}">${p.prediction}</div></div>
+        <div class="pred-detail">Predicted for ${hourLabel(p.nextHour)} · ${p.nextHourCount} historical requests · Confidence: ${p.confidence}%</div>
+        <div class="pred-bar-wrap"><div class="pred-bar-fill" style="width:${p.confidence}%;background:${barColor};"></div></div>
+      </div>`;
+    }).join('');
+    showToast('🔮 Prediction Complete',`Analysed ${allEntries.length} entries across ${predictions.length} locations.`);
+  });
+}
+
+function renderIxGrid(reqs){
+  const areas=[{id:'Hebl',lat:13.035,t:'medium'},{id:'Mjstc',lat:12.977,t:'high'},{id:'WF',lat:12.969,t:'high'},
+    {id:'MG',lat:12.975,t:'medium'},{id:'SlkBd',lat:12.917,t:'high'},{id:'Jynr',lat:12.929,t:'low'}];
+  document.getElementById('ixGrid').innerHTML=areas.map(a=>{
+    const vc=Object.values(reqs||{}).filter(r=>r.startLat&&Math.abs(r.startLat-a.lat)<0.04).length;
+    return `<div class="ixn ${a.t}"><div class="ixn-id">${a.id}</div><div class="ixn-v">${vc}</div></div>`;
+  }).join('');
+}
+
+function showToast(title,msg){
+  const wrap=document.getElementById('toastWrap');
+  const el=document.createElement('div');el.className='toast';
+  el.innerHTML=`<b>${title}</b>${msg}`;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(),6000);
+}
+function safeD(s){try{return dec(s);}catch{return s||'—';}}
+
+// ═══════════════════════════════════════════════
+//  QR CODE SCANNER
+// ═══════════════════════════════════════════════
+let html5QrScanner=null;
+let lastScannedUid=null;
+let scannedUserData=null;
+
+function openScanner(){
+  document.getElementById('scanModalBg').classList.add('show');
+  document.getElementById('scanStatus').textContent='';
+  document.getElementById('manualUidInput').value='';
+
+  if(typeof Html5Qrcode==='undefined'){
+    document.getElementById('qrReaderBox').innerHTML=
+      `<div style="color:var(--danger);font-size:.68rem;padding:20px;text-align:center;line-height:1.6;">
+        ❌ Camera scanner library failed to load.<br>Use manual ID entry below instead.
+      </div>`;
+    return;
+  }
+
+  document.getElementById('qrReaderBox').innerHTML='<div id="qrReaderInner" style="width:100%;"></div>';
+  html5QrScanner=new Html5Qrcode("qrReaderInner");
+  const config={fps:10,qrbox:{width:200,height:200}};
+
+  html5QrScanner.start(
+    {facingMode:"environment"},
+    config,
+    (decodedText)=>{ onQRScanSuccess(decodedText); },
+    (errorMessage)=>{}
+  ).catch(err=>{
+    console.error('Camera start failed:',err);
+    document.getElementById('scanStatus').innerHTML=
+      `<span style="color:var(--danger);">❌ Camera access denied or unavailable.<br>Use manual ID entry below.</span>`;
+  });
+}
+
+function closeScanner(){
+  document.getElementById('scanModalBg').classList.remove('show');
+  if(html5QrScanner){
+    html5QrScanner.stop().then(()=>{html5QrScanner.clear();html5QrScanner=null;}).catch(()=>{html5QrScanner=null;});
+  }
+}
+
+function onQRScanSuccess(uid){
+  if(uid===lastScannedUid)return;
+  lastScannedUid=uid;
+  document.getElementById('scanStatus').innerHTML=`<span style="color:var(--success);">✅ QR detected — looking up...</span>`;
+  closeScanner();
+  lookupUserByUid(uid);
+  setTimeout(()=>{lastScannedUid=null;},2000);
+}
+
+function lookupManualUid(){
+  const uid=document.getElementById('manualUidInput').value.trim();
+  if(!uid){showToast('⚠ Enter an ID','Please type a valid ITFOS ID.');return;}
+  closeScanner();
+  lookupUserByUid(uid);
+}
+
+function lookupUserByUid(uid){
+  fdb.ref('users/'+uid).once('value',snap=>{
+    const user=snap.val();
+    if(!user){showToast('❌ Not Found',`No ITFOS user found with ID: ${uid}`);return;}
+    scannedUserData=user;
+    document.getElementById('scanName').textContent=safeD(user.name);
+    document.getElementById('scanVehicle').textContent=safeD(user.vehicle);
+    fdb.ref('requests/'+uid).once('value',reqSnap=>{
+      const req=reqSnap.val();
+      if(req){document.getElementById('scanRoute').innerHTML=`📍 ${safeD(req.start)} → 🏁 ${safeD(req.dest)}`;}
+      else{document.getElementById('scanRoute').textContent='No active route';}
+      document.getElementById('scanResultBg').classList.add('show');
+    });
+  });
+}
+
+function closeScanResult(){
+  document.getElementById('scanResultBg').classList.remove('show');
+}
+
+function jumpToScannedUser(){
+  if(!scannedUserData)return;
+  closeScanResult();
+  const uid=scannedUserData.uid;
+  if(activeRequests[uid]){
+    quickSelect(uid,'congestion');
+    const req=activeRequests[uid];
+    if(aMap&&req.startLat&&req.startLng){aMap.setView([req.startLat,req.startLng],15);}
+    showToast('📍 Vehicle Located',`Map centered on ${safeD(scannedUserData.name)}'s location.`);
+  }else{
+    showToast('ℹ️ No Active Route',`${safeD(scannedUserData.name)} has not submitted a route yet.`);
+  }
+}
+</script>
+</body>
+</html>

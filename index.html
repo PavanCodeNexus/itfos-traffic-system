@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ITFOS – Smart Traffic Advisor | User</title>
+<meta name="theme-color" content="#0B1220">
+<script>
+// ═══════════════════════════════════════════════
+//  PWA MANIFEST — must be declared in <head> BEFORE
+//  page finishes loading, or Chrome won't detect it.
+//  Generated inline as a Blob so no separate file is needed.
+// ═══════════════════════════════════════════════
+(function(){
+  function generateIconDataURL(size){
+    const canvas=document.createElement('canvas');
+    canvas.width=size;canvas.height=size;
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#0B1220';
+    ctx.beginPath();
+    const r=size*0.19;
+    ctx.moveTo(r,0);ctx.arcTo(size,0,size,size,r);ctx.arcTo(size,size,0,size,r);
+    ctx.arcTo(0,size,0,0,r);ctx.arcTo(0,0,size,0,r);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#2563EB';ctx.lineWidth=size*0.04;
+    ctx.beginPath();ctx.arc(size/2,size/2,size*0.36,0,Math.PI*2);ctx.stroke();
+    const dotR=size*0.075;
+    ctx.fillStyle='#22C55E';ctx.beginPath();ctx.arc(size/2,size*0.31,dotR,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#F59E0B';ctx.beginPath();ctx.arc(size/2,size*0.5,dotR,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#EF4444';ctx.beginPath();ctx.arc(size/2,size*0.69,dotR,0,Math.PI*2);ctx.fill();
+    return canvas.toDataURL('image/png');
+  }
+  const icon192=generateIconDataURL(192);
+  const icon512=generateIconDataURL(512);
+
+  const manifestData={
+    name:"ITFOS - Intelligent Traffic Flow Optimization System",
+    short_name:"ITFOS",
+    description:"AI-Powered Smart Traffic Advisor for Bangalore",
+    start_url:"./",
+    scope:"./",
+    display:"standalone",
+    background_color:"#0B1220",
+    theme_color:"#2563EB",
+    orientation:"portrait-primary",
+    icons:[
+      {src:icon192,sizes:"192x192",type:"image/png",purpose:"any"},
+      {src:icon192,sizes:"192x192",type:"image/png",purpose:"maskable"},
+      {src:icon512,sizes:"512x512",type:"image/png",purpose:"any"},
+      {src:icon512,sizes:"512x512",type:"image/png",purpose:"maskable"}
+    ]
+  };
+
+  const manifestBlob=new Blob([JSON.stringify(manifestData)],{type:'application/json'});
+  const manifestURL=URL.createObjectURL(manifestBlob);
+
+  // Write the manifest link tag directly via document.write-equivalent
+  // synchronous DOM insertion — runs immediately as the head is parsed
+  const link=document.createElement('link');
+  link.rel='manifest';
+  link.href=manifestURL;
+  document.currentScript.after(link);
+
+  const favicon=document.createElement('link');
+  favicon.rel='icon';
+  favicon.href=icon192;
+  document.currentScript.after(favicon);
+
+  const appleIcon=document.createElement('link');
+  appleIcon.rel='apple-touch-icon';
+  appleIcon.href=icon192;
+  document.currentScript.after(appleIcon);
+
+  // Store icons globally so service worker registration script can reuse if needed
+  window.__itfosIcons = {icon192, icon512};
+})();
+</script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@600;700;900&display=swap');
+:root{
+  --bg:#0B1220;--surface:#111827;--card:#1a2235;--border:#1e2d45;
+  --primary:#2563EB;--secondary:#06B6D4;--accent:#7C3AED;
+  --success:#22C55E;--warning:#F59E0B;--danger:#EF4444;
+  --text:#F8FAFC;--muted:#94A3B8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);min-height:100vh;overflow-x:hidden;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:var(--primary);border-radius:2px;}
+
+/* NAV */
+nav{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:1000;
+  background:rgba(17,24,39,.82);backdrop-filter:blur(20px);
+  border:1px solid rgba(37,99,235,.25);border-radius:16px;
+  padding:10px 22px;display:flex;align-items:center;gap:20px;
+  transition:all .3s;min-width:min(820px,96vw);}
+nav.scrolled{background:rgba(11,18,32,.95);box-shadow:0 8px 32px rgba(37,99,235,.2);}
+.nav-logo{font-family:'Orbitron',monospace;font-size:.88rem;font-weight:900;color:var(--primary);letter-spacing:2px;white-space:nowrap;}
+.nav-logo span{color:var(--secondary);}
+.nav-links{display:flex;gap:2px;flex:1;justify-content:center;}
+.nav-link{padding:6px 13px;border-radius:8px;font-size:.75rem;font-weight:500;color:var(--muted);cursor:pointer;transition:all .2s;border:none;background:none;}
+.nav-link:hover{color:var(--text);background:rgba(37,99,235,.12);}
+.fb-status{display:flex;align-items:center;gap:5px;font-size:.6rem;padding:4px 10px;border-radius:20px;font-weight:600;}
+.fb-ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.2);}
+.fb-err{background:rgba(239,68,68,.1);color:var(--danger);border:1px solid rgba(239,68,68,.2);}
+.fb-loading{background:rgba(245,158,11,.1);color:var(--warning);border:1px solid rgba(245,158,11,.2);}
+.fb-dot{width:5px;height:5px;border-radius:50%;background:currentColor;animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.nav-right{display:flex;align-items:center;gap:8px;}
+
+/* ── VOICE TOGGLE BUTTON ── */
+.voice-toggle{display:flex;align-items:center;gap:6px;padding:6px 13px;border-radius:20px;
+  border:1px solid rgba(124,58,237,.35);background:rgba(124,58,237,.08);
+  color:var(--accent);font-size:.65rem;font-weight:600;cursor:pointer;
+  font-family:'Inter',sans-serif;transition:all .2s;white-space:nowrap;}
+.voice-toggle:hover{background:rgba(124,58,237,.18);}
+.voice-toggle.on{background:rgba(124,58,237,.2);border-color:var(--accent);
+  box-shadow:0 0 12px rgba(124,58,237,.3);}
+.voice-toggle.on .vt-dot{animation:voicePulse .6s ease-in-out infinite alternate;}
+@keyframes voicePulse{0%{transform:scale(1);opacity:1}100%{transform:scale(1.4);opacity:.6}}
+.vt-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);}
+.vt-icon{font-size:.9rem;}
+
+.nb{padding:7px 16px;border-radius:8px;font-size:.73rem;font-weight:600;cursor:pointer;border:none;transition:all .2s;font-family:'Inter',sans-serif;}
+.nb-in{background:rgba(37,99,235,.12);color:var(--primary);border:1px solid rgba(37,99,235,.25);}
+.nb-in:hover{background:var(--primary);color:#fff;}
+.nb-up{background:var(--primary);color:#fff;}
+.nb-up:hover{background:#1d4ed8;}
+.nav-user{display:none;align-items:center;gap:8px;}
+.nav-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;cursor:pointer;}
+.nav-nm{font-size:.72rem;color:var(--muted);}
+
+/* HERO */
+.hero{min-height:100vh;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:100px 20px 60px;}
+.hero-bg{position:absolute;inset:0;z-index:0;}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(37,99,235,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(37,99,235,.06) 1px,transparent 1px);background-size:60px 60px;animation:gm 20s linear infinite;}
+@keyframes gm{0%{transform:translateY(0)}100%{transform:translateY(60px)}}
+.orb{position:absolute;border-radius:50%;filter:blur(80px);animation:of 8s ease-in-out infinite;}
+.o1{width:400px;height:400px;background:rgba(37,99,235,.18);top:-100px;left:-100px;}
+.o2{width:300px;height:300px;background:rgba(124,58,237,.14);top:40%;right:-80px;animation-delay:3s;}
+.o3{width:250px;height:250px;background:rgba(6,182,212,.12);bottom:-50px;left:30%;animation-delay:5s;}
+@keyframes of{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-30px) scale(1.05)}}
+.hero-content{position:relative;z-index:1;text-align:center;max-width:820px;}
+.h-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.28);border-radius:20px;padding:6px 16px;font-size:.7rem;font-weight:600;color:var(--primary);margin-bottom:22px;letter-spacing:.5px;}
+.h-bdot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:blink 1s infinite;}
+.h-title{font-family:'Orbitron',monospace;font-size:clamp(1.8rem,5vw,3rem);font-weight:900;line-height:1.15;margin-bottom:14px;}
+.h-title .t1{color:var(--text);}
+.h-title .t2{background:linear-gradient(135deg,var(--primary),var(--secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.h-sub{font-size:.98rem;color:var(--muted);line-height:1.7;max-width:560px;margin:0 auto 30px;}
+.h-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:44px;}
+.hbtn{padding:13px 28px;border-radius:10px;font-size:.86rem;font-weight:700;cursor:pointer;border:none;font-family:'Inter',sans-serif;transition:all .25s;letter-spacing:.3px;}
+.hbtn-p{background:linear-gradient(135deg,var(--primary),#1d4ed8);color:#fff;box-shadow:0 4px 20px rgba(37,99,235,.35);}
+.hbtn-p:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(37,99,235,.5);}
+.hbtn-g{background:rgba(255,255,255,.05);color:var(--text);border:1px solid rgba(255,255,255,.12);}
+.hbtn-g:hover{background:rgba(255,255,255,.1);transform:translateY(-2px);}
+.h-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;max-width:700px;margin:0 auto;}
+.hstat{background:rgba(17,24,39,.75);backdrop-filter:blur(12px);border:1px solid rgba(37,99,235,.18);border-radius:12px;padding:14px;text-align:center;}
+.hstat-val{font-family:'Orbitron',monospace;font-size:1.25rem;font-weight:700;background:linear-gradient(135deg,var(--primary),var(--secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hstat-lbl{font-size:.58rem;color:var(--muted);margin-top:3px;letter-spacing:.5px;text-transform:uppercase;}
+
+/* SECTIONS */
+section{padding:80px 20px;}
+.si{max-width:1100px;margin:0 auto;}
+.sbadge{display:inline-block;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.22);border-radius:20px;padding:4px 14px;font-size:.65rem;font-weight:600;color:var(--primary);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;}
+.stitle{font-family:'Orbitron',monospace;font-size:clamp(1.3rem,3vw,1.9rem);font-weight:800;margin-bottom:8px;}
+.ssub{font-size:.88rem;color:var(--muted);max-width:500px;line-height:1.7;margin-bottom:36px;}
+.glass{background:rgba(17,24,39,.55);backdrop-filter:blur(16px);border:1px solid rgba(30,45,69,.8);border-radius:14px;transition:all .3s;}
+.glass:hover{border-color:rgba(37,99,235,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(37,99,235,.1);}
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+.feat-card{padding:22px;}
+.feat-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;margin-bottom:12px;}
+.feat-title{font-size:.88rem;font-weight:700;margin-bottom:5px;}
+.feat-desc{font-size:.72rem;color:var(--muted);line-height:1.6;}
+.map-sec{padding:80px 20px;}
+.map-box{border-radius:18px;overflow:hidden;border:1px solid var(--border);box-shadow:0 0 50px rgba(37,99,235,.12);position:relative;}
+#previewMap{height:460px;width:100%;}
+.leaflet-container{background:#0b1220!important;}
+.map-legend-box{position:absolute;top:12px;left:12px;z-index:500;background:rgba(11,18,32,.92);backdrop-filter:blur(12px);border:1px solid rgba(37,99,235,.22);border-radius:10px;padding:10px 13px;}
+.mlb-title{font-family:'Orbitron',monospace;font-size:.55rem;font-weight:700;color:var(--primary);letter-spacing:1px;margin-bottom:6px;}
+.mlb-row{display:flex;align-items:center;gap:5px;margin-bottom:3px;font-size:.6rem;color:var(--muted);}
+.mlb-d{width:7px;height:7px;border-radius:50%;}
+.steps-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;}
+.step-card{padding:22px;text-align:center;transition:all .3s;}
+.step-n{font-family:'Orbitron',monospace;font-size:1.8rem;font-weight:900;background:linear-gradient(135deg,var(--primary),var(--secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:9px;}
+.step-t{font-size:.86rem;font-weight:700;margin-bottom:5px;}
+.step-d{font-size:.7rem;color:var(--muted);line-height:1.6;}
+
+/* AUTH MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);z-index:2000;display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:30px;width:100%;max-width:400px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.modal-x{position:absolute;top:14px;right:14px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.05);border:none;color:var(--muted);cursor:pointer;font-size:.88rem;display:flex;align-items:center;justify-content:center;}
+.modal-x:hover{background:rgba(239,68,68,.12);color:var(--danger);}
+.m-logo{font-family:'Orbitron',monospace;font-size:.85rem;font-weight:900;color:var(--primary);letter-spacing:2px;margin-bottom:3px;}
+.m-sub{font-size:.67rem;color:var(--muted);margin-bottom:18px;}
+.atabs{display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:3px;margin-bottom:18px;}
+.atab{flex:1;padding:7px;text-align:center;font-size:.73rem;font-weight:600;cursor:pointer;border-radius:6px;color:var(--muted);border:none;background:none;font-family:'Inter',sans-serif;transition:all .2s;}
+.atab.on{background:var(--primary);color:#fff;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:.62rem;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px;}
+.field input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:.8rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;}
+.field input:focus{border-color:var(--primary);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.sbtn{width:100%;padding:11px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--primary),#1d4ed8);color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;margin-top:4px;}
+.sbtn:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(37,99,235,.4);}
+.sbtn.grn{background:linear-gradient(135deg,var(--success),#16a34a);}
+.err{font-size:.66rem;color:var(--danger);margin-top:4px;padding:5px 9px;background:rgba(239,68,68,.07);border-radius:6px;display:none;}
+.sw{text-align:center;font-size:.7rem;color:var(--muted);margin-top:10px;}
+.sw a{color:var(--primary);cursor:pointer;font-weight:500;}
+.enc{display:flex;align-items:center;gap:4px;font-size:.58rem;color:var(--success);background:rgba(34,197,94,.06);border-radius:6px;padding:5px 9px;margin-top:7px;}
+
+/* DASHBOARD */
+#dashboard{display:none;min-height:100vh;padding-top:70px;}
+.dash-body{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 70px);overflow:hidden;}
+.dash-side{background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:13px;display:flex;flex-direction:column;gap:11px;}
+.dash-side::-webkit-scrollbar{width:3px;}
+.ds-lbl{font-size:.57rem;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;}
+.ds-card{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:13px;}
+
+/* ── VOICE STATUS CARD ── */
+.voice-card{background:linear-gradient(135deg,rgba(124,58,237,.08),rgba(37,99,235,.05));
+  border:1px solid rgba(124,58,237,.25);border-radius:11px;padding:12px;
+  display:flex;flex-direction:column;gap:8px;}
+.vc-top{display:flex;align-items:center;justify-content:space-between;}
+.vc-title{font-size:.72rem;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:5px;}
+.vc-switch{position:relative;width:38px;height:20px;cursor:pointer;}
+.vc-switch input{opacity:0;width:0;height:0;}
+.vc-slider{position:absolute;inset:0;background:#1e2d45;border-radius:20px;transition:.3s;}
+.vc-slider::before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:var(--muted);border-radius:50%;transition:.3s;}
+.vc-switch input:checked+.vc-slider{background:var(--accent);}
+.vc-switch input:checked+.vc-slider::before{transform:translateX(18px);background:#fff;}
+.vc-desc{font-size:.6rem;color:var(--muted);line-height:1.5;}
+.vc-status{font-size:.6rem;font-weight:600;padding:3px 9px;border-radius:10px;display:inline-block;width:fit-content;}
+.vc-on{background:rgba(124,58,237,.15);color:var(--accent);}
+.vc-off{background:rgba(148,163,184,.08);color:var(--muted);}
+
+/* Voice wave animation */
+.voice-wave{display:flex;align-items:center;gap:2px;height:16px;display:none;}
+.voice-wave.active{display:flex;}
+.vw-bar{width:3px;border-radius:2px;background:var(--accent);animation:waveAnim .8s ease-in-out infinite;}
+.vw-bar:nth-child(1){animation-delay:0s;height:4px;}
+.vw-bar:nth-child(2){animation-delay:.1s;height:8px;}
+.vw-bar:nth-child(3){animation-delay:.2s;height:12px;}
+.vw-bar:nth-child(4){animation-delay:.3s;height:16px;}
+.vw-bar:nth-child(5){animation-delay:.4s;height:12px;}
+.vw-bar:nth-child(6){animation-delay:.5s;height:8px;}
+.vw-bar:nth-child(7){animation-delay:.6s;height:4px;}
+@keyframes waveAnim{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+
+/* SPEAKING OVERLAY */
+.speaking-overlay{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;
+  background:rgba(124,58,237,.95);backdrop-filter:blur(12px);
+  border:1px solid var(--accent);border-radius:16px;
+  padding:14px 22px;display:none;align-items:center;gap:12px;
+  box-shadow:0 8px 32px rgba(124,58,237,.4);max-width:420px;width:90%;}
+.speaking-overlay.show{display:flex;animation:slideUp .3s ease;}
+@keyframes slideUp{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+.so-icon{font-size:1.5rem;flex-shrink:0;}
+.so-content{flex:1;}
+.so-title{font-size:.68rem;font-weight:700;color:#fff;margin-bottom:2px;}
+.so-msg{font-size:.62rem;color:rgba(255,255,255,.75);line-height:1.4;}
+.so-wave{display:flex;align-items:center;gap:2px;}
+.sow-bar{width:3px;height:10px;border-radius:2px;background:#fff;opacity:.7;animation:waveAnim .5s ease-in-out infinite;}
+.sow-bar:nth-child(1){animation-delay:0s;}
+.sow-bar:nth-child(2){animation-delay:.1s;}
+.sow-bar:nth-child(3){animation-delay:.2s;}
+.sow-bar:nth-child(4){animation-delay:.3s;}
+.sow-bar:nth-child(5){animation-delay:.4s;}
+.so-stop{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;
+  padding:5px 10px;font-size:.6rem;color:#fff;cursor:pointer;font-weight:600;
+  font-family:'Inter',sans-serif;white-space:nowrap;}
+.so-stop:hover{background:rgba(255,255,255,.25);}
+
+/* Route inputs */
+.loc-wr{position:relative;margin-bottom:7px;}
+.loc-ic{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;z-index:1;}
+.loc-wr input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 10px 9px 30px;border-radius:8px;font-size:.76rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;}
+.loc-wr input:focus{border-color:var(--primary);}
+.loc-div{width:1px;height:11px;background:var(--border);margin:0 auto -3px;}
+.sug-box{position:absolute;left:0;right:0;top:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:170px;overflow-y:auto;margin-top:3px;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+.sug-item{padding:7px 11px;font-size:.71rem;cursor:pointer;color:var(--text);transition:background .15s;}
+.sug-item:hover{background:rgba(37,99,235,.1);}
+.route-btn{width:100%;padding:10px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--primary),#1d4ed8);color:#fff;font-weight:700;font-size:.76rem;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:5px;}
+.route-btn:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(37,99,235,.4);}
+.route-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+
+.status-box{border-radius:10px;padding:12px;border:1px solid;}
+.sb-idle{background:rgba(30,45,69,.3);border-color:var(--border);}
+.sb-active{background:rgba(34,197,94,.04);border-color:var(--success);}
+.sb-warn{background:rgba(245,158,11,.04);border-color:var(--warning);}
+.sb-danger{background:rgba(239,68,68,.04);border-color:var(--danger);}
+.sb-blue{background:rgba(37,99,235,.04);border-color:var(--primary);}
+.sb-icon{font-size:1.3rem;margin-bottom:4px;}
+.sb-title{font-size:.8rem;font-weight:700;margin-bottom:2px;}
+.sb-idle .sb-title{color:var(--muted);}
+.sb-active .sb-title{color:var(--success);}
+.sb-warn .sb-title{color:var(--warning);}
+.sb-danger .sb-title{color:var(--danger);}
+.sb-blue .sb-title{color:var(--primary);}
+.sb-msg{font-size:.66rem;color:var(--muted);line-height:1.5;}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.smi{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px;text-align:center;}
+.smi-val{font-family:'Orbitron',monospace;font-size:.88rem;font-weight:700;color:var(--primary);}
+.smi-lbl{font-size:.5rem;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.3px;}
+.notif-stack{display:flex;flex-direction:column;gap:5px;max-height:230px;overflow-y:auto;}
+.notif-stack::-webkit-scrollbar{width:2px;}
+.ni{border-radius:8px;padding:8px 10px;border-left:3px solid var(--border);background:var(--bg);position:relative;cursor:pointer;transition:all .2s;}
+.ni:hover{background:rgba(37,99,235,.04);}
+.ni.congestion{border-left-color:var(--warning);}
+.ni.emergency{border-left-color:var(--danger);}
+.ni.reroute{border-left-color:var(--primary);}
+.ni.clear{border-left-color:var(--success);}
+.ni.info{border-left-color:var(--accent);}
+.ni.unread::after{content:'';position:absolute;top:8px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--primary);box-shadow:0 0 6px var(--primary);animation:blink .8s infinite;}
+.ni-type{font-size:.58rem;font-weight:700;letter-spacing:.5px;margin-bottom:2px;}
+.ni.congestion .ni-type{color:var(--warning);}
+.ni.emergency .ni-type{color:var(--danger);}
+.ni.reroute .ni-type{color:var(--primary);}
+.ni.clear .ni-type{color:var(--success);}
+.ni.info .ni-type{color:var(--accent);}
+.ni-msg{font-size:.66rem;color:var(--text);line-height:1.5;}
+.ni-time{font-size:.55rem;color:var(--muted);margin-top:2px;}
+.empty-ni{font-size:.68rem;color:var(--muted);text-align:center;padding:14px;line-height:1.6;}
+.nbadge{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;background:var(--danger);border-radius:50%;font-size:.5rem;font-weight:700;color:#fff;margin-left:4px;}
+
+/* ── CROWD REPORT BUTTONS ── */
+.crowd-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px;
+  border-radius:9px;border:1px solid var(--border);background:var(--bg);cursor:pointer;
+  transition:all .2s;font-family:'Inter',sans-serif;}
+.cb-icon{font-size:1.1rem;}
+.cb-label{font-size:.58rem;font-weight:600;color:var(--muted);}
+.cb-clear:hover{border-color:var(--success);background:rgba(34,197,94,.06);}
+.cb-clear:hover .cb-label{color:var(--success);}
+.cb-moderate:hover{border-color:var(--warning);background:rgba(245,158,11,.06);}
+.cb-moderate:hover .cb-label{color:var(--warning);}
+.cb-heavy:hover{border-color:var(--danger);background:rgba(239,68,68,.06);}
+.cb-heavy:hover .cb-label{color:var(--danger);}
+.crowd-btn.selected{transform:scale(.95);}
+.crowd-btn.selected.cb-clear{border-color:var(--success);background:rgba(34,197,94,.12);}
+.crowd-btn.selected.cb-moderate{border-color:var(--warning);background:rgba(245,158,11,.12);}
+.crowd-btn.selected.cb-heavy{border-color:var(--danger);background:rgba(239,68,68,.12);}
+
+/* TOAST */
+.toast-wrap{position:fixed;top:78px;right:13px;z-index:3000;display:flex;flex-direction:column;gap:7px;pointer-events:none;max-width:270px;}
+.toast-item{background:var(--card);border-radius:11px;padding:12px 14px;border-left:3px solid var(--primary);box-shadow:0 4px 20px rgba(0,0,0,.5);pointer-events:all;transform:translateX(120%);transition:transform .35s cubic-bezier(.34,1.56,.64,1);position:relative;}
+.toast-item.show{transform:translateX(0);}
+.toast-item.congestion{border-left-color:var(--warning);}
+.toast-item.emergency{border-left-color:var(--danger);}
+.toast-item.reroute{border-left-color:var(--primary);}
+.toast-item.clear{border-left-color:var(--success);}
+.toast-item.info{border-left-color:var(--accent);}
+.ti-title{font-size:.68rem;font-weight:700;margin-bottom:2px;}
+.ti-msg{font-size:.62rem;color:var(--muted);}
+.ti-x{position:absolute;top:7px;right:9px;cursor:pointer;color:var(--muted);background:none;border:none;font-size:.82rem;}
+
+@media(max-width:768px){
+  nav{padding:8px 12px;gap:10px;min-width:95vw;}
+  .nav-links{display:none;}
+  .dash-body{grid-template-columns:1fr;grid-template-rows:auto 1fr;}
+  .dash-side{max-height:52vh;}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="mainNav">
+  <div class="nav-logo">IT<span>FOS</span></div>
+  <div class="nav-links">
+    <button class="nav-link" onclick="scrollTo(0,0)">Home</button>
+    <button class="nav-link" onclick="gotoSec('features')">Features</button>
+    <button class="nav-link" onclick="gotoSec('map-sec')">Live Map</button>
+    <button class="nav-link" onclick="gotoSec('how')">How It Works</button>
+  </div>
+  <div class="fb-status fb-loading" id="fbStatus"><div class="fb-dot"></div><span id="fbTxt">Connecting…</span></div>
+  <!-- VOICE TOGGLE IN NAV -->
+  <button class="voice-toggle" id="navVoiceBtn" onclick="toggleVoice()" title="Toggle Voice Alerts">
+    <div class="vt-dot" id="vtDot"></div>
+    <span class="vt-icon" id="vtIcon">🔇</span>
+    <span id="vtLabel">Voice OFF</span>
+  </button>
+  <div class="nav-right">
+    <div class="nav-user" id="navUser">
+      <div class="nav-nm" id="navNm"></div>
+      <button class="nb" onclick="showMyQR()" style="background:rgba(6,182,212,.12);color:#06B6D4;border:1px solid rgba(6,182,212,.25);padding:6px 12px;">🎫 My QR</button>
+      <div class="nav-av" id="navAv" onclick="logout()" title="Logout"></div>
+    </div>
+    <button class="nb nb-in" id="navIn" onclick="openModal('login')">Sign In</button>
+    <button class="nb nb-up" id="navUp" onclick="openModal('register')">Get Started</button>
+    <button class="nb" id="installBtn" onclick="installPWA()" style="display:none;background:linear-gradient(135deg,#7C3AED,#5b21b6);color:#fff;">📲 Install App</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="heroSec">
+  <div class="hero-bg">
+    <div class="hero-grid"></div>
+    <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+  </div>
+  <div class="hero-content">
+    <div class="h-badge"><div class="h-bdot"></div>AI-POWERED TRAFFIC ADVISOR · BANGALORE · VOICE ENABLED</div>
+    <div class="h-title">
+      <div class="t1">Intelligent Traffic Flow</div>
+      <div class="t2">Optimization System</div>
+    </div>
+    <div class="h-sub">Real-Time AI Traffic Monitoring with <b style="color:var(--accent)">Voice Alerts</b> — now your phone speaks traffic warnings while you drive. Hands-free. Completely free.</div>
+    <div class="h-btns">
+      <button class="hbtn hbtn-p" onclick="openModal('register')">🚀 Get Started Free</button>
+      <button class="hbtn hbtn-g" onclick="gotoSec('map-sec')">🗺 View Live Map</button>
+    </div>
+    <div class="h-stats">
+      <div class="hstat"><div class="hstat-val" id="hs1">0</div><div class="hstat-lbl">Active Roads</div></div>
+      <div class="hstat"><div class="hstat-val" id="hs2">0</div><div class="hstat-lbl">Live Vehicles</div></div>
+      <div class="hstat"><div class="hstat-val" id="hs3">0%</div><div class="hstat-lbl">Efficiency</div></div>
+      <div class="hstat"><div class="hstat-val" id="hs4">0s</div><div class="hstat-lbl">Delay Saved</div></div>
+      <div class="hstat"><div class="hstat-val" id="hs5">0.0</div><div class="hstat-lbl">Congestion Index</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="si">
+    <div class="sbadge">FEATURES</div>
+    <div class="stitle">Smart City Traffic Intelligence</div>
+    <div class="ssub">Everything you need for a faster, safer, smarter commute — now with voice.</div>
+    <div class="feat-grid">
+      <div class="glass feat-card"><div class="feat-icon" style="background:rgba(124,58,237,.12);">🔊</div><div class="feat-title">Voice Alerts — Hands-Free</div><div class="feat-desc">Your phone speaks every traffic alert aloud while you drive. No need to look at the screen — 100% safe and hands-free.</div></div>
+      <div class="glass feat-card"><div class="feat-icon" style="background:rgba(37,99,235,.1);">📍</div><div class="feat-title">Real-Time GPS Tracking</div><div class="feat-desc">Submit your route and get instant AI-powered traffic analysis based on live GPS data across Bangalore.</div></div>
+      <div class="glass feat-card"><div class="feat-icon" style="background:rgba(6,182,212,.1);">🔀</div><div class="feat-title">Smart Route Advisory</div><div class="feat-desc">Receive alternate route suggestions when congestion is detected — spoken aloud automatically.</div></div>
+      <div class="glass feat-card"><div class="feat-icon" style="background:rgba(239,68,68,.1);">🚨</div><div class="feat-title">Emergency Voice Warning</div><div class="feat-desc">When ambulance is near, your phone loudly announces it. Pull over safely without looking at screen.</div></div>
+      <div class="glass feat-card"><div class="feat-icon" style="background:rgba(34,197,94,.1);">✅</div><div class="feat-title">Route Cleared Announcement</div><div class="feat-desc">Phone speaks when your route is clear — you know instantly without touching the device.</div></div>
+      <div class="glass feat-card"><div class="feat-icon" style="background:rgba(245,158,11,.1);">⚡</div><div class="feat-title">Firebase Real-Time</div><div class="feat-desc">Alerts reach your voice in under 1 second from admin — powered by Firebase across all devices.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- MAP -->
+<section class="map-sec" id="map-sec">
+  <div class="si">
+    <div class="sbadge">LIVE MAP</div>
+    <div class="stitle">Bangalore Traffic Grid</div>
+    <div class="ssub">Real-time traffic conditions across Bangalore's major roads.</div>
+    <div class="map-box">
+      <div id="previewMap"></div>
+      <div class="map-legend-box">
+        <div class="mlb-title">LIVE TRAFFIC</div>
+        <div class="mlb-row"><div class="mlb-d" style="background:#22C55E;"></div>Clear</div>
+        <div class="mlb-row"><div class="mlb-d" style="background:#F59E0B;"></div>Moderate</div>
+        <div class="mlb-row"><div class="mlb-d" style="background:#EF4444;"></div>High</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="si">
+    <div class="sbadge">HOW IT WORKS</div>
+    <div class="stitle">Your Journey, Optimized</div>
+    <div class="ssub">Four simple steps to a smarter, faster, safer commute.</div>
+    <div class="steps-grid">
+      <div class="glass step-card"><div class="step-n">01</div><div class="step-t">Register & Login</div><div class="step-d">Create your free account. All data encrypted and stored securely in Firebase.</div></div>
+      <div class="glass step-card"><div class="step-n">02</div><div class="step-t">Enable Voice Alerts</div><div class="step-d">Toggle the Voice button ON — your phone will speak all traffic advisories aloud while you drive.</div></div>
+      <div class="glass step-card"><div class="step-n">03</div><div class="step-t">Enter Your Route</div><div class="step-d">Type start and destination. AI instantly analyses live conditions on your route.</div></div>
+      <div class="glass step-card"><div class="step-n">04</div><div class="step-t">Drive & Listen</div><div class="step-d">Receive spoken alerts hands-free — congestion, reroute, emergency, route clearance — all announced aloud.</div></div>
+    </div>
+    <div style="text-align:center;margin-top:30px;"><button class="hbtn hbtn-p" onclick="openModal('register')">Start Your Journey →</button></div>
+  </div>
+</section>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="dash-body">
+    <div class="dash-side">
+
+      <!-- VOICE CONTROL CARD -->
+      <div>
+        <div class="ds-lbl">🔊 Voice Alert System</div>
+        <div class="voice-card">
+          <div class="vc-top">
+            <div class="vc-title">
+              <span id="voiceCardIcon">🔇</span>
+              Voice Alerts
+              <div class="voice-wave" id="voiceWave">
+                <div class="vw-bar"></div><div class="vw-bar"></div><div class="vw-bar"></div>
+                <div class="vw-bar"></div><div class="vw-bar"></div><div class="vw-bar"></div>
+                <div class="vw-bar"></div>
+              </div>
+            </div>
+            <label class="vc-switch">
+              <input type="checkbox" id="voiceSwitch" onchange="toggleVoice()">
+              <span class="vc-slider"></span>
+            </label>
+          </div>
+          <div class="vc-desc">When ON — your phone speaks every traffic alert aloud. Safe for driving — no need to look at screen.</div>
+          <div class="vc-status vc-off" id="voiceStatusLabel">🔇 Voice OFF — tap toggle to enable</div>
+          <button onclick="testVoice()" style="background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.25);color:var(--accent);border-radius:7px;padding:6px 12px;font-size:.62rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;margin-top:2px;width:100%;">
+            🎙 Test Voice Now
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div class="ds-lbl">Plan Your Route</div>
+        <div class="ds-card">
+          <div class="loc-wr">
+            <span class="loc-ic">📍</span>
+            <input id="startInp" placeholder="Start — e.g. Koramangala" oninput="suggest('start',this.value)">
+            <div class="sug-box" id="startSug"></div>
+          </div>
+          <div class="loc-div"></div>
+          <div class="loc-wr" style="margin-top:6px;">
+            <span class="loc-ic" style="color:var(--danger);">🏁</span>
+            <input id="destInp" placeholder="Destination — e.g. Whitefield" oninput="suggest('dest',this.value)">
+            <div class="sug-box" id="destSug"></div>
+          </div>
+          <div style="font-size:.58rem;color:var(--muted);margin:5px 0 5px;">Tip: type area name e.g. MG Road, Hebbal…</div>
+          <button class="route-btn" id="routeBtn" onclick="submitRoute()">🚀 Get Live Traffic Advisory</button>
+          <div class="err" id="routeErr" style="margin-top:5px;">Please enter both locations.</div>
+        </div>
+      </div>
+
+      <!-- CROWD REPORT CARD -->
+      <div id="crowdCardWrap" style="display:none;">
+        <div class="ds-lbl">👥 Report Live Traffic</div>
+        <div class="ds-card" style="padding:12px;">
+          <div style="font-size:.65rem;color:var(--muted);margin-bottom:9px;line-height:1.5;">How is traffic at <b style="color:var(--text);" id="crowdLocName">your location</b> right now?</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+            <button class="crowd-btn cb-clear" onclick="submitCrowdReport('clear')">
+              <span class="cb-icon">🟢</span><span class="cb-label">Clear</span>
+            </button>
+            <button class="crowd-btn cb-moderate" onclick="submitCrowdReport('moderate')">
+              <span class="cb-icon">🟡</span><span class="cb-label">Moderate</span>
+            </button>
+            <button class="crowd-btn cb-heavy" onclick="submitCrowdReport('heavy')">
+              <span class="cb-icon">🔴</span><span class="cb-label">Heavy</span>
+            </button>
+          </div>
+          <div id="crowdThanks" style="display:none;font-size:.6rem;color:var(--success);text-align:center;margin-top:8px;padding:6px;background:rgba(34,197,94,.08);border-radius:6px;">✅ Thank you! Your report has been recorded.</div>
+          <div style="font-size:.55rem;color:var(--muted);margin-top:7px;text-align:center;">Reports expire after 5 minutes · Crowd-sourced by <span id="crowdCount">0</span> users nearby</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="ds-lbl">Journey Status</div>
+        <div class="status-box sb-idle" id="statusBox">
+          <div class="sb-icon">🛣️</div>
+          <div class="sb-title">Ready to Navigate</div>
+          <div class="sb-msg">Enter your route above to get live advisory from ITFOS.</div>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="smi"><div class="smi-val" id="u_alerts">0</div><div class="smi-lbl">Alerts</div></div>
+        <div class="smi"><div class="smi-val" id="u_routes">0</div><div class="smi-lbl">Routes</div></div>
+        <div class="smi"><div class="smi-val" id="u_traffic" style="font-size:.62rem;">—</div><div class="smi-lbl">Status</div></div>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+          <div class="ds-lbl" style="margin-bottom:0;">Live Notifications <span class="nbadge" id="u_badge" style="display:none;">0</span></div>
+          <span style="font-size:.57rem;color:var(--muted);cursor:pointer;" onclick="markAllRead()">Clear all</span>
+        </div>
+        <div class="notif-stack" id="notifStack">
+          <div class="empty-ni">🔔 No notifications yet.<br>Submit your route to begin.</div>
+        </div>
+      </div>
+
+    </div>
+    <div id="userMap" style="width:100%;height:100%;"></div>
+  </div>
+</div>
+
+<!-- AUTH MODAL -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <button class="modal-x" onclick="closeModal()">✕</button>
+    <div class="m-logo">ITFOS</div>
+    <div class="m-sub">Smart Traffic Advisor · Bangalore</div>
+    <div class="atabs">
+      <button class="atab" id="t1" onclick="authTab('login')">Sign In</button>
+      <button class="atab" id="t2" onclick="authTab('register')">Register</button>
+    </div>
+    <div id="loginF">
+      <div class="field"><label>Email</label><input id="lEmail" type="email" placeholder="you@email.com"></div>
+      <div class="field"><label>Password</label><input id="lPass" type="password" placeholder="••••••••"></div>
+      <div class="err" id="lErr"></div>
+      <button class="sbtn" onclick="doLogin()">Sign In →</button>
+      <div class="enc">🔒 Data encrypted · Secure login</div>
+      <div class="sw">No account? <a onclick="authTab('register')">Register here</a></div>
+      <div style="font-size:.58rem;color:var(--muted);text-align:center;margin-top:6px;">Demo: <b style="color:var(--primary)">demo@itfos.com</b> / <b style="color:var(--primary)">demo123</b></div>
+    </div>
+    <div id="regF" style="display:none;">
+      <div class="two-col">
+        <div class="field"><label>Full Name</label><input id="rName" placeholder="Ravi Kumar"></div>
+        <div class="field"><label>Vehicle No.</label><input id="rVehicle" placeholder="KA01AB1234" oninput="this.value=this.value.toUpperCase()"></div>
+      </div>
+      <div class="field"><label>Email</label><input id="rEmail" type="email" placeholder="you@email.com"></div>
+      <div class="field"><label>Phone</label><input id="rPhone" placeholder="+91 98765 43210"></div>
+      <div class="field"><label>Password</label><input id="rPass" type="password" placeholder="Min 6 characters"></div>
+      <div class="err" id="rErr"></div>
+      <button class="sbtn grn" onclick="doRegister()">Create Account →</button>
+      <div class="enc">🔒 All data encrypted before Firebase storage</div>
+      <div class="sw">Already registered? <a onclick="authTab('login')">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- SPEAKING OVERLAY — shows when voice is speaking -->
+<div class="speaking-overlay" id="speakingOverlay">
+  <div class="so-icon" id="soIcon">🔊</div>
+  <div class="so-content">
+    <div class="so-title" id="soTitle">Speaking Alert…</div>
+    <div class="so-msg" id="soMsg"></div>
+  </div>
+  <div class="so-wave">
+    <div class="sow-bar"></div><div class="sow-bar"></div><div class="sow-bar"></div>
+    <div class="sow-bar"></div><div class="sow-bar"></div>
+  </div>
+  <button class="so-stop" onclick="stopSpeaking()">■ Stop</button>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- QR CODE MODAL -->
+<div class="modal-bg" id="qrModalBg">
+  <div class="modal" style="max-width:340px;text-align:center;">
+    <button class="modal-x" onclick="closeQRModal()">✕</button>
+    <div class="m-logo">🎫 YOUR ITFOS ID</div>
+    <div class="m-sub">Save this QR code — scan it at any ITFOS checkpoint for instant identification</div>
+    <div id="qrCodeBox" style="background:#fff;padding:14px;border-radius:12px;display:inline-block;margin:12px 0;"></div>
+    <div style="font-size:.68rem;color:var(--muted);margin-bottom:4px;">Vehicle Owner</div>
+    <div style="font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:2px;" id="qrUserName">—</div>
+    <div style="font-family:'Orbitron',monospace;font-size:.72rem;color:var(--primary);margin-bottom:14px;" id="qrVehicleNo">—</div>
+    <button class="sbtn" onclick="downloadQR()">⬇ Download QR Code</button>
+    <button class="sbtn" style="background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:8px;" onclick="closeQRModal()">Continue to Dashboard</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  FIREBASE CONFIG
+// ═══════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyCRLNuOiSZmzMlnsq1b-wvlcxdca_IJPXw",
+  authDomain: "itfos-6aa1d.firebaseapp.com",
+  databaseURL: "https://itfos-6aa1d-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "itfos-6aa1d",
+  storageBucket: "itfos-6aa1d.firebasestorage.app",
+  messagingSenderId: "332861964305",
+  appId: "1:332861964305:web:23792f6456be4a5e81f1b0"
+};
+firebase.initializeApp(firebaseConfig);
+const fdb = firebase.database();
+
+// Firebase status
+fdb.ref('.info/connected').on('value', snap => {
+  const el = document.getElementById('fbStatus');
+  const tx = document.getElementById('fbTxt');
+  if (snap.val()) { el.className='fb-status fb-ok'; tx.textContent='● Firebase Live'; }
+  else { el.className='fb-status fb-err'; tx.textContent='○ Reconnecting…'; }
+});
+
+// ═══════════════════════════════════════════════
+//  VOICE ALERT SYSTEM — CORE ENGINE
+//  Uses Web Speech API — built into every browser
+//  Cost: ₹0 — completely free
+// ═══════════════════════════════════════════════
+let voiceEnabled = false;
+let currentUtterance = null;
+
+// Voice messages for each alert type — Indian English
+const VOICE_MESSAGES = {
+  congestion: (start, dest) =>
+    `ITFOS Traffic Alert. High congestion detected on your route from ${start} to ${dest}. ` +
+    `Please slow down and follow the advisory. An alternate route suggestion will follow shortly.`,
+
+  emergency: (start, dest) =>
+    `ITFOS Emergency Alert. An ambulance or emergency vehicle is approaching your area near ${start}. ` +
+    `Please pull over to the left side immediately and give way. ` +
+    `Resume your journey only after the emergency vehicle has passed. Drive safe.`,
+
+  reroute: (start, dest) =>
+    `ITFOS Route Advisory. Congestion has been detected near ${start} on your route to ${dest}. ` +
+    `A faster alternate route is suggested. Please follow the advisory on your screen for directions. ` +
+    `Estimated time saving is ten to fifteen minutes.`,
+
+  clear: (start, dest) =>
+    `ITFOS Route Update. Good news! Traffic on your route from ${start} to ${dest} is now clear. ` +
+    `You may proceed normally. Have a safe journey.`,
+
+  info: (start, dest) =>
+    `ITFOS Traffic Update. Live GPS data shows moderate traffic near ${start}. ` +
+    `Your route to ${dest} is operational. Plan your journey accordingly.`,
+};
+
+// Alert icons for overlay
+const ALERT_ICONS = {
+  congestion: '⚠️',
+  emergency:  '🚨',
+  reroute:    '🔀',
+  clear:      '✅',
+  info:       'ℹ️',
+};
+
+// Alert titles for overlay
+const ALERT_TITLES = {
+  congestion: '⚠️ Traffic Congestion',
+  emergency:  '🚨 Emergency Alert',
+  reroute:    '🔀 Reroute Advisory',
+  clear:      '✅ Route Cleared',
+  info:       'ℹ️ Traffic Update',
+};
+
+// ── TOGGLE VOICE ON/OFF ──
+function toggleVoice() {
+  voiceEnabled = !voiceEnabled;
+  updateVoiceUI();
+  if (voiceEnabled) {
+    // Small welcome message to confirm voice works
+    speakText(
+      'Voice alerts enabled. I T F O S will now speak all traffic alerts aloud. Drive safe.',
+      'info',
+      'Voice Alerts Enabled',
+      'ITFOS will speak all alerts aloud'
+    );
+  } else {
+    stopSpeaking();
+    showToast2('🔇 Voice alerts turned OFF', 'muted');
+  }
+}
+
+// ── UPDATE ALL VOICE UI ELEMENTS ──
+function updateVoiceUI() {
+  const sw = document.getElementById('voiceSwitch');
+  const label = document.getElementById('voiceStatusLabel');
+  const icon = document.getElementById('voiceCardIcon');
+  const wave = document.getElementById('voiceWave');
+  const navBtn = document.getElementById('navVoiceBtn');
+  const vtIcon = document.getElementById('vtIcon');
+  const vtLabel = document.getElementById('vtLabel');
+  const vtDot = document.getElementById('vtDot');
+
+  if (voiceEnabled) {
+    sw.checked = true;
+    label.className = 'vc-status vc-on';
+    label.textContent = '🔊 Voice ON — alerts will be spoken aloud';
+    icon.textContent = '🔊';
+    wave.classList.add('active');
+    navBtn.classList.add('on');
+    vtIcon.textContent = '🔊';
+    vtLabel.textContent = 'Voice ON';
+    vtDot.style.background = 'var(--accent)';
+  } else {
+    sw.checked = false;
+    label.className = 'vc-status vc-off';
+    label.textContent = '🔇 Voice OFF — tap toggle to enable';
+    icon.textContent = '🔇';
+    wave.classList.remove('active');
+    navBtn.classList.remove('on');
+    vtIcon.textContent = '🔇';
+    vtLabel.textContent = 'Voice OFF';
+    vtDot.style.background = 'var(--muted)';
+  }
+}
+
+// ── TEST VOICE BUTTON ──
+function testVoice() {
+  speakText(
+    'Voice alert test successful. I T F O S voice system is working correctly. ' +
+    'You will now hear all traffic alerts spoken aloud while you drive. ' +
+    'This system was built by Pavan Kumar and team at D S A T M Bangalore.',
+    'info',
+    '🎙 Voice Test',
+    'Testing ITFOS voice system…'
+  );
+  if (!voiceEnabled) {
+    voiceEnabled = true;
+    updateVoiceUI();
+  }
+}
+
+// ── CORE SPEAK FUNCTION ──
+function speakText(text, type, title, shortMsg) {
+  // Stop any current speech
+  stopSpeaking();
+
+  // Show speaking overlay
+  const overlay = document.getElementById('speakingOverlay');
+  document.getElementById('soIcon').textContent = ALERT_ICONS[type] || '🔊';
+  document.getElementById('soTitle').textContent = title || 'Speaking…';
+  document.getElementById('soMsg').textContent = shortMsg || text.slice(0, 80) + '…';
+  overlay.classList.add('show');
+
+  // Create utterance
+  currentUtterance = new SpeechSynthesisUtterance(text);
+
+  // Voice settings — Indian English
+  currentUtterance.lang = 'en-IN';
+  currentUtterance.rate = 0.88;     // Slightly slower — easier to understand while driving
+  currentUtterance.pitch = 1.0;
+  currentUtterance.volume = 1.0;    // Maximum volume
+
+  // Try to use a female voice if available (clearer for alerts)
+  const voices = speechSynthesis.getVoices();
+  const preferredVoice =
+    voices.find(v => v.lang === 'en-IN') ||
+    voices.find(v => v.lang === 'en-GB') ||
+    voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
+    voices.find(v => v.lang.startsWith('en'));
+
+  if (preferredVoice) currentUtterance.voice = preferredVoice;
+
+  // When speech ends — hide overlay
+  currentUtterance.onend = () => {
+    overlay.classList.remove('show');
+    currentUtterance = null;
+  };
+
+  currentUtterance.onerror = () => {
+    overlay.classList.remove('show');
+    currentUtterance = null;
+  };
+
+  // Speak!
+  speechSynthesis.speak(currentUtterance);
+}
+
+// ── STOP SPEAKING ──
+function stopSpeaking() {
+  speechSynthesis.cancel();
+  currentUtterance = null;
+  document.getElementById('speakingOverlay').classList.remove('show');
+}
+
+// ── SPEAK ALERT (called when notification received) ──
+function speakAlert(type, message, start, dest) {
+  if (!voiceEnabled) return;
+
+  // Build the spoken message
+  const voiceMsg = VOICE_MESSAGES[type]
+    ? VOICE_MESSAGES[type](start || 'your location', dest || 'your destination')
+    : message;
+
+  speakText(voiceMsg, type, ALERT_TITLES[type] || 'ITFOS Alert', message.slice(0,80));
+}
+
+// ═══ ENCRYPTION ═══
+const KEY = 'ITFOS_DSATM_ECE_2025_PAVAN_SECURE';
+const enc = s => btoa(encodeURIComponent(s).split('').map((c,i) => String.fromCharCode(c.charCodeAt(0)^KEY.charCodeAt(i%KEY.length))).join(''));
+const dec = s => { try { return decodeURIComponent(atob(s).split('').map((c,i) => String.fromCharCode(c.charCodeAt(0)^KEY.charCodeAt(i%KEY.length))).join('')); } catch { return s; } };
+
+// ═══ STATE ═══
+let currentUser = null, uMap = null, uSM = null, uDM = null, uRL = null;
+let notifications = [], routeCount = 0, alertCount = 0, unread = 0;
+let notifListener = null;
+let currentStart = '', currentDest = '';
+
+// ═══ BANGALORE AREAS ═══
+const AREAS = {
+  'mg road':{lat:12.9757,lng:77.6064,traffic:'high'},
+  'koramangala':{lat:12.9352,lng:77.6245,traffic:'medium'},
+  'indiranagar':{lat:12.9784,lng:77.6408,traffic:'high'},
+  'whitefield':{lat:12.9698,lng:77.7499,traffic:'high'},
+  'jayanagar':{lat:12.9299,lng:77.5826,traffic:'low'},
+  'marathahalli':{lat:12.9591,lng:77.6974,traffic:'medium'},
+  'electronic city':{lat:12.8458,lng:77.6634,traffic:'medium'},
+  'hebbal':{lat:13.0351,lng:77.5972,traffic:'medium'},
+  'rajajinagar':{lat:12.9897,lng:77.5527,traffic:'low'},
+  'btm layout':{lat:12.9165,lng:77.6100,traffic:'medium'},
+  'silk board':{lat:12.9172,lng:77.6231,traffic:'high'},
+  'bannerghatta':{lat:12.8957,lng:77.5975,traffic:'low'},
+  'yelahanka':{lat:13.1003,lng:77.5963,traffic:'low'},
+  'banashankari':{lat:12.9255,lng:77.5468,traffic:'low'},
+  'malleshwaram':{lat:13.0035,lng:77.5682,traffic:'medium'},
+  'jp nagar':{lat:12.9056,lng:77.5850,traffic:'low'},
+  'hsr layout':{lat:12.9116,lng:77.6474,traffic:'medium'},
+  'yeshwanthpur':{lat:13.0213,lng:77.5511,traffic:'low'},
+  'peenya':{lat:13.0282,lng:77.5198,traffic:'medium'},
+  'majestic':{lat:12.9773,lng:77.5706,traffic:'high'},
+  'shivajinagar':{lat:12.9884,lng:77.5981,traffic:'medium'},
+  'ulsoor':{lat:12.9812,lng:77.6191,traffic:'medium'},
+  'richmond road':{lat:12.9619,lng:77.6050,traffic:'medium'},
+  'kr puram':{lat:13.0043,lng:77.6939,traffic:'medium'},
+  'hosur road':{lat:12.8700,lng:77.6300,traffic:'high'},
+  'old airport road':{lat:12.9606,lng:77.6481,traffic:'high'},
+  'sarjapur road':{lat:12.9071,lng:77.6665,traffic:'high'},
+  'outer ring road':{lat:12.9350,lng:77.6950,traffic:'high'},
+  'manyata tech park':{lat:13.0474,lng:77.6205,traffic:'medium'},
+  'cunningham road':{lat:12.9855,lng:77.5907,traffic:'low'},
+};
+
+// ═══ SEED DEMO USER ═══
+fdb.ref('users/demo1').once('value', snap => {
+  if (!snap.exists()) {
+    fdb.ref('users/demo1').set({uid:'demo1',name:enc('Pavan Kumar'),vehicle:enc('KA05MN4321'),email:enc('demo@itfos.com'),phone:enc('+919876543210'),password:enc('demo123'),joined:'Jun 2025'});
+  }
+});
+
+// ═══ HERO COUNTERS ═══
+function counter(id, target, suf='', dur=2000) {
+  const el = document.getElementById(id); const start = Date.now();
+  const tick = () => {
+    const p = Math.min(1,(Date.now()-start)/dur);
+    el.textContent = (Number.isInteger(target)?Math.round(p*target):(p*target).toFixed(1)) + suf;
+    if(p<1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+setTimeout(() => { counter('hs1',42); counter('hs2',1847); counter('hs3',87,'%'); counter('hs4',14,'s'); counter('hs5',2.3); },600);
+
+window.addEventListener('scroll',()=>document.getElementById('mainNav').classList.toggle('scrolled',scrollY>50));
+
+// ═══ MAPS ═══
+function initPreviewMap() {
+  const pm = L.map('previewMap',{center:[12.9716,77.5946],zoom:12,zoomControl:false,attributionControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(pm);
+  L.control.zoom({position:'bottomright'}).addTo(pm);
+  addRoads(pm); addDots(pm); injectTip();
+}
+
+function addRoads(map) {
+  [{p:[[12.9897,77.5527],[12.9773,77.5706],[12.9757,77.6064]],c:'#EF4444',w:4,t:'Outer Ring Road — HIGH'},
+   {p:[[12.9757,77.6064],[12.9784,77.6408],[12.9698,77.7499]],c:'#EF4444',w:4,t:'Old Airport Road — HIGH'},
+   {p:[[12.9172,77.6231],[12.9071,77.6665]],c:'#EF4444',w:5,t:'Silk Board — HIGH'},
+   {p:[[12.8700,77.6300],[12.9071,77.6665],[12.9350,77.6950]],c:'#EF4444',w:4,t:'Hosur Road — HIGH'},
+   {p:[[12.9773,77.5706],[12.9716,77.5946],[12.9784,77.6408]],c:'#F59E0B',w:3,t:'MG Road — MODERATE'},
+   {p:[[13.0474,77.6205],[13.0043,77.6939],[12.9591,77.6974]],c:'#F59E0B',w:3,t:'KR Puram — MODERATE'},
+   {p:[[12.8458,77.6634],[12.9165,77.6100],[12.9352,77.6245]],c:'#F59E0B',w:3,t:'Electronic City — MODERATE'},
+   {p:[[13.0351,77.5972],[12.9897,77.5527],[12.9255,77.5468]],c:'#22C55E',w:3,t:'Tumkur Road — CLEAR'},
+   {p:[[12.9255,77.5468],[12.9056,77.5850],[12.8957,77.5975]],c:'#22C55E',w:3,t:'Bannerghatta Road — CLEAR'},
+  ].forEach(r=>L.polyline(r.p,{color:r.c,weight:r.w,opacity:.8}).bindTooltip(r.t,{sticky:true,className:'blr-tip'}).addTo(map));
+}
+
+function addDots(map) {
+  Object.entries(AREAS).forEach(([k,v])=>{
+    const c=v.traffic==='high'?'#EF4444':v.traffic==='medium'?'#F59E0B':'#22C55E';
+    L.circleMarker([v.lat,v.lng],{radius:4,color:c,fillColor:c,fillOpacity:.6,weight:1})
+      .bindTooltip(k.split(' ').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '),{className:'blr-tip'}).addTo(map);
+  });
+}
+
+function injectTip(){
+  if(document.getElementById('tipCSS'))return;
+  const s=document.createElement('style');s.id='tipCSS';
+  s.textContent=`.blr-tip{background:#131e2e;color:#f1f5f9;border:1px solid #1a2840;border-radius:6px;font-family:'Inter',sans-serif;font-size:11px;padding:3px 8px;white-space:nowrap;}`;
+  document.head.appendChild(s);
+}
+
+function initUserMap(){
+  if(uMap)return;
+  uMap=L.map('userMap',{center:[12.9716,77.5946],zoom:12,zoomControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(uMap);
+  L.control.zoom({position:'bottomright'}).addTo(uMap);
+  addRoads(uMap); addDots(uMap); injectTip();
+  setTimeout(()=>uMap.invalidateSize(),200);
+}
+
+// ═══ AUTOCOMPLETE ═══
+function suggest(field,val){
+  const id=field==='start'?'startSug':'destSug';
+  const box=document.getElementById(id);
+  if(val.length<2){box.style.display='none';return;}
+  const matches=Object.keys(AREAS).filter(k=>k.includes(val.toLowerCase())).slice(0,6);
+  if(!matches.length){box.style.display='none';return;}
+  box.innerHTML=matches.map(k=>`<div class="sug-item" onclick="pickArea('${field}','${k}')">${k.split(' ').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}</div>`).join('');
+  box.style.display='block';
+}
+function pickArea(field,key){
+  const label=key.split(' ').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
+  if(field==='start'){document.getElementById('startInp').value=label;document.getElementById('startSug').style.display='none';}
+  else{document.getElementById('destInp').value=label;document.getElementById('destSug').style.display='none';}
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.loc-wr'))document.querySelectorAll('.sug-box').forEach(b=>b.style.display='none');});
+
+// ═══ SUBMIT ROUTE ═══
+function resolveArea(str){
+  const q=str.toLowerCase().trim();
+  for(const[k,v]of Object.entries(AREAS)){if(q.includes(k)||k.includes(q.slice(0,5)))return{...v,key:k,label:str};}
+  return{lat:12.9716+(Math.random()-.5)*.05,lng:77.5946+(Math.random()-.5)*.08,traffic:'low',key:'custom',label:str};
+}
+
+function submitRoute(){
+  const start=document.getElementById('startInp').value.trim();
+  const dest=document.getElementById('destInp').value.trim();
+  const errEl=document.getElementById('routeErr');
+  errEl.style.display='none';
+  if(!start||!dest){errEl.style.display='block';return;}
+
+  currentStart=start; currentDest=dest;
+  const sA=resolveArea(start),dA=resolveArea(dest);
+  routeCount++; document.getElementById('u_routes').textContent=routeCount;
+
+  if(uSM)uMap.removeLayer(uSM);
+  if(uDM)uMap.removeLayer(uDM);
+  if(uRL)uMap.removeLayer(uRL);
+
+  const mkG=L.divIcon({html:`<div style="background:#22C55E;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 12px #22C55E;"></div>`,iconSize:[14,14],iconAnchor:[7,7]});
+  const mkR=L.divIcon({html:`<div style="background:#EF4444;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 12px #EF4444;"></div>`,iconSize:[14,14],iconAnchor:[7,7]});
+
+  uSM=L.marker([sA.lat,sA.lng],{icon:mkG}).bindPopup(`<b style="font-family:Inter;font-size:12px;color:#f1f5f9;">📍 Start: ${start}</b>`).addTo(uMap).openPopup();
+  uDM=L.marker([dA.lat,dA.lng],{icon:mkR}).bindPopup(`<b style="font-family:Inter;font-size:12px;color:#f1f5f9;">🏁 Destination: ${dest}</b>`).addTo(uMap);
+  uRL=L.polyline([[sA.lat,sA.lng],[dA.lat,dA.lng]],{color:'#2563EB',weight:3,dashArray:'8,10',opacity:.85}).addTo(uMap);
+  uMap.fitBounds([[sA.lat,sA.lng],[dA.lat,dA.lng]],{padding:[60,60]});
+  setStatus('sb-active','🟢 Route Submitted','AI is analysing your route. Live advisory coming shortly.');
+
+  // Save to Firebase
+  fdb.ref('requests/'+currentUser.uid).set({
+    uid:currentUser.uid,name:currentUser.name,vehicle:currentUser.vehicle,
+    start:enc(start),dest:enc(dest),
+    startLat:sA.lat,startLng:sA.lng,destLat:dA.lat,destLng:dA.lng,
+    startTraffic:sA.traffic,destTraffic:dA.traffic,timestamp:Date.now()
+  });
+
+  document.getElementById('routeBtn').disabled=true;
+  document.getElementById('routeBtn').textContent='📡 Route Active — Awaiting Advisory…';
+
+  setTimeout(()=>addNotif('info','🔍 AI Analysis Started',`Checking traffic cameras and GPS density between ${start} and ${dest}.`),1200);
+  setTimeout(()=>addNotif('info','📡 GPS Tracking Active','Your route is live on Firebase. Admin advisory will appear and be spoken aloud.'),3500);
+
+  // Voice confirmation of route submission
+  if(voiceEnabled){
+    setTimeout(()=>speakText(
+      `Route submitted. Travelling from ${start} to ${dest}. ` +
+      `I T F O S is now monitoring your route in real time. ` +
+      `You will be notified by voice if there is any traffic advisory.`,
+      'info','Route Active','Monitoring your route…'
+    ),1400);
+  }
+
+  // ✅ SHOW CROWD REPORT CARD — key normalized from start location
+  currentLocKey = sA.key || start.toLowerCase().replace(/\s+/g,'_');
+  document.getElementById('crowdLocName').textContent = start;
+  document.getElementById('crowdCardWrap').style.display = 'block';
+  listenCrowdCount(currentLocKey);
+
+  // ✅ NEW USER ARRIVING AT AN ALREADY-CONGESTED LOCATION
+  checkExistingCongestionOnArrival(currentLocKey, start);
+
+  // ✅ LOG THIS SUBMISSION TO PERMANENT ROUTE HISTORY (for AI prediction)
+  logRouteHistory(currentLocKey, sA.lat, sA.lng);
+}
+
+// ═══════════════════════════════════════════════
+//  AI TIME PREDICTION — Route History Logging
+//  Cost: ₹0 — pure Firebase + JavaScript frequency analysis
+// ═══════════════════════════════════════════════
+function logRouteHistory(locationKey, lat, lng) {
+  const now = new Date();
+  fdb.ref('route_history').push({
+    location: locationKey,
+    hour: now.getHours(),
+    day: now.toLocaleDateString('en',{weekday:'short'}),
+    lat, lng,
+    timestamp: now.getTime()
+  });
+}
+
+// ═══ AUTO-ALERT A NEWLY ARRIVING USER IF LOCATION IS ALREADY CONGESTED ═══
+let alreadyNotifiedForLoc = {}; // prevents repeat alerts in same session for same location+level
+
+function checkExistingCongestionOnArrival(locKey, locLabel) {
+  fdb.ref('crowd_reports/' + locKey).once('value', snap => {
+    const reports = snap.val() || {};
+    const now = Date.now();
+    const recent = Object.values(reports).filter(r => now - r.timestamp < CROWD_EXPIRY);
+    const heavyCount = recent.filter(r => r.status === 'heavy').length;
+    const moderateCount = recent.filter(r => r.status === 'moderate').length;
+
+    const key = locKey;
+
+    if (heavyCount >= 3 && alreadyNotifiedForLoc[key] !== 'heavy') {
+      alreadyNotifiedForLoc[key] = 'heavy';
+      const msg = `⚠️ Crowd Alert: ${heavyCount} drivers have reported HEAVY traffic at ${locLabel} in the last 5 minutes. Consider an alternate route.`;
+      addNotif('congestion', getTitle('congestion'), msg);
+      showToast('congestion', getTitle('congestion'), msg);
+      handleStatus('congestion');
+      if (voiceEnabled) speakAlert('congestion', msg, currentStart, currentDest);
+    } else if (moderateCount >= 2 && heavyCount < 3 && alreadyNotifiedForLoc[key] !== 'moderate' && alreadyNotifiedForLoc[key] !== 'heavy') {
+      alreadyNotifiedForLoc[key] = 'moderate';
+      const msg = `ℹ️ Crowd Alert: ${moderateCount} drivers reported moderate traffic at ${locLabel}. Drive carefully.`;
+      addNotif('info', getTitle('info'), msg);
+      showToast('info', getTitle('info'), msg);
+      handleStatus('info');
+      if (voiceEnabled) speakAlert('info', msg, currentStart, currentDest);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  CROWD REPORTS SYSTEM — 5 minute threshold
+//  Cost: ₹0 — pure Firebase logic
+// ═══════════════════════════════════════════════
+let currentLocKey = '';
+let lastCrowdReportTime = 0;
+const CROWD_COOLDOWN = 60000; // 1 min between reports from same user (prevent spam)
+const CROWD_EXPIRY = 5 * 60 * 1000; // ✅ 5 MINUTES — reports older than this are ignored
+
+function submitCrowdReport(status) {
+  if (!currentUser || !currentLocKey) return;
+
+  // Prevent spam — 1 report per minute per user
+  const now = Date.now();
+  if (now - lastCrowdReportTime < CROWD_COOLDOWN) {
+    showToast2('⏳ Please wait a moment before reporting again', 'muted');
+    return;
+  }
+  lastCrowdReportTime = now;
+
+  // Highlight selected button
+  document.querySelectorAll('.crowd-btn').forEach(b => b.classList.remove('selected'));
+  const btnMap = {clear:'.cb-clear', moderate:'.cb-moderate', heavy:'.cb-heavy'};
+  document.querySelector(btnMap[status])?.classList.add('selected');
+
+  // ✅ WRITE REPORT TO FIREBASE
+  fdb.ref('crowd_reports/' + currentLocKey + '/' + currentUser.uid).set({
+    uid: currentUser.uid,
+    status: status,
+    timestamp: now
+  });
+
+  // Show thank you message
+  const thanks = document.getElementById('crowdThanks');
+  thanks.style.display = 'block';
+  setTimeout(() => thanks.style.display = 'none', 3000);
+
+  showToast2(`✅ Reported: ${status.toUpperCase()} traffic at ${currentStart}`, 'ok');
+
+  // Voice confirmation
+  if (voiceEnabled) {
+    speakText(
+      `Thank you. Your report of ${status} traffic has been recorded and shared with nearby drivers.`,
+      'info', '✅ Report Submitted', `Reported ${status} traffic`
+    );
+  }
+
+  // ✅ CHECK THRESHOLD after this report
+  setTimeout(() => checkCrowdThreshold(currentLocKey), 800);
+}
+
+// ── LISTEN TO LIVE CROWD COUNT AT THIS LOCATION ──
+function listenCrowdCount(locKey) {
+  fdb.ref('crowd_reports/' + locKey).on('value', snap => {
+    const reports = snap.val() || {};
+    const recent = Object.values(reports).filter(r => Date.now() - r.timestamp < CROWD_EXPIRY);
+    document.getElementById('crowdCount').textContent = recent.length;
+
+    // ✅ LIVE CHECK — fires for THIS user too, even if they never reported,
+    // as long as they are currently viewing this location's crowd card.
+    // This ensures a user who arrived earlier also gets the alert the
+    // instant the 3rd heavy report comes in from someone else.
+    checkExistingCongestionOnArrival(locKey, currentStart);
+  });
+}
+
+// ── CHECK IF THRESHOLD REACHED → AUTO ALERT ──
+function checkCrowdThreshold(locKey) {
+  fdb.ref('crowd_reports/' + locKey).once('value', snap => {
+    const reports = snap.val() || {};
+    const now = Date.now();
+
+    // ✅ Filter only reports from last 5 MINUTES
+    const recent = Object.values(reports).filter(r => now - r.timestamp < CROWD_EXPIRY);
+
+    const heavyCount = recent.filter(r => r.status === 'heavy').length;
+    const moderateCount = recent.filter(r => r.status === 'moderate').length;
+
+    // ✅ THRESHOLD RULES
+    let autoAlertType = null;
+    let autoMsg = '';
+
+    if (heavyCount >= 3) {
+      autoAlertType = 'congestion';
+      autoMsg = `⚠️ Crowd Alert: ${heavyCount} drivers confirmed HEAVY traffic at ${currentStart} in the last 5 minutes. Consider an alternate route.`;
+    } else if (moderateCount >= 2) {
+      autoAlertType = 'info';
+      autoMsg = `ℹ️ Crowd Alert: ${moderateCount} drivers reported moderate traffic at ${currentStart}. Drive carefully.`;
+    }
+
+    // If threshold reached, notify all users who reported at this location
+    if (autoAlertType) {
+      const uids = Object.keys(reports).filter(uid => {
+        const r = reports[uid];
+        return now - r.timestamp < CROWD_EXPIRY;
+      });
+      uids.forEach(uid => {
+        // Avoid re-notifying — check a flag
+        fdb.ref('crowd_alerted/' + locKey + '/' + uid).once('value', flagSnap => {
+          if (!flagSnap.exists() || now - (flagSnap.val()||0) > CROWD_EXPIRY) {
+            fdb.ref('notifications/' + uid).push({
+              type: autoAlertType,
+              message: autoMsg,
+              timestamp: now,
+              source: 'crowd'
+            });
+            fdb.ref('crowd_alerted/' + locKey + '/' + uid).set(now);
+          }
+        });
+      });
+    }
+  });
+}
+
+// ═══ FIREBASE NOTIFICATION LISTENER ═══
+function startListening(){
+  if(!currentUser)return;
+  if(notifListener)fdb.ref('notifications/'+currentUser.uid).off('child_added',notifListener);
+  notifListener=fdb.ref('notifications/'+currentUser.uid).on('child_added',snap=>{
+    const n=snap.val(); if(!n)return;
+    const msg=n.message||'';
+    const type=n.type||'info';
+    addNotif(type,getTitle(type),msg);
+    showToast(type,getTitle(type),msg);
+    handleStatus(type);
+    // ✅ SPEAK THE ALERT ALOUD
+    speakAlert(type,msg,currentStart,currentDest);
+  });
+}
+
+function getTitle(t){
+  return{congestion:'⚠️ Traffic Congestion',emergency:'🚨 Emergency Alert',reroute:'🔀 Reroute Advisory',clear:'✅ Route Cleared',info:'ℹ️ Traffic Update'}[t]||'🔔 Alert';
+}
+
+function handleStatus(type){
+  const m={
+    congestion:{cls:'sb-warn',title:'⚠️ Congestion Ahead',msg:'High traffic on your route. Voice alert spoken.'},
+    emergency:{cls:'sb-danger',title:'🚨 Emergency Alert',msg:'Emergency vehicle approaching. Pull over! Voice alert spoken.'},
+    reroute:{cls:'sb-blue',title:'🔀 Reroute Suggested',msg:'Take alternate route as advised. Voice alert spoken.'},
+    clear:{cls:'sb-active',title:'✅ Route Cleared',msg:'Traffic is clear. Proceed normally. Voice alert spoken.'},
+    info:{cls:'sb-active',title:'ℹ️ Traffic Update',msg:'New traffic info received. Voice alert spoken.'},
+  }[type]||{cls:'sb-active',title:'🔔 Alert',msg:''};
+  setStatus(m.cls,m.title,m.msg);
+  const labels={congestion:'HIGH',emergency:'CRITICAL',reroute:'REROUTE',clear:'CLEAR',info:'ACTIVE'};
+  const el=document.getElementById('u_traffic');
+  el.textContent=labels[type]||'ACTIVE';
+  el.style.color={congestion:'var(--warning)',emergency:'var(--danger)',reroute:'var(--primary)',clear:'var(--success)',info:'var(--primary)'}[type]||'var(--primary)';
+}
+
+function addNotif(type,title,msg){
+  alertCount++;unread++;
+  document.getElementById('u_alerts').textContent=alertCount;
+  const badge=document.getElementById('u_badge');badge.style.display='flex';badge.textContent=unread;
+  const now=new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  notifications.unshift({type,title,msg,time:now,isNew:true});
+  renderNotifs();
+}
+
+function renderNotifs(){
+  const el=document.getElementById('notifStack');
+  if(!notifications.length){el.innerHTML=`<div class="empty-ni">🔔 No notifications yet.<br>Submit your route to begin.</div>`;return;}
+  el.innerHTML=notifications.map((n,i)=>`
+    <div class="ni ${n.type} ${n.isNew?'unread':''}" onclick="readNotif(${i})">
+      <div class="ni-type">${n.title}</div>
+      <div class="ni-msg">${n.msg}</div>
+      <div class="ni-time">${n.time} ${n.isNew?'· 🔊 Spoken aloud':''}</div>
+    </div>`).join('');
+}
+function readNotif(i){notifications[i].isNew=false;renderNotifs();}
+function markAllRead(){notifications.forEach(n=>n.isNew=false);unread=0;document.getElementById('u_badge').style.display='none';renderNotifs();}
+function setStatus(cls,title,msg){
+  const el=document.getElementById('statusBox');
+  el.className='status-box '+cls;
+  el.innerHTML=`<div class="sb-icon">${title.split(' ')[0]}</div><div class="sb-title">${title}</div><div class="sb-msg">${msg}</div>`;
+}
+
+// ═══ TOAST ═══
+function showToast(type,title,msg){
+  const wrap=document.getElementById('toastWrap');
+  const el=document.createElement('div');
+  el.className=`toast-item ${type}`;el.style.position='relative';
+  el.innerHTML=`<button class="ti-x" onclick="this.parentElement.remove()">✕</button><div class="ti-title">${title}</div><div class="ti-msg">${msg.slice(0,80)}</div>`;
+  wrap.appendChild(el);
+  setTimeout(()=>el.classList.add('show'),50);
+  setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),400);},7000);
+}
+
+function showToast2(msg,type){
+  const wrap=document.getElementById('toastWrap');
+  const el=document.createElement('div');
+  el.className='toast-item';el.style.position='relative';
+  el.style.borderLeftColor=type==='muted'?'var(--muted)':'var(--accent)';
+  el.innerHTML=`<button class="ti-x" onclick="this.parentElement.remove()">✕</button><div class="ti-title">${msg}</div>`;
+  wrap.appendChild(el);
+  setTimeout(()=>el.classList.add('show'),50);
+  setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),400);},3500);
+}
+
+// ═══ AUTH ═══
+function openModal(tab){document.getElementById('modalBg').classList.add('open');authTab(tab);}
+function closeModal(){document.getElementById('modalBg').classList.remove('open');}
+function authTab(t){
+  document.getElementById('t1').classList.toggle('on',t==='login');
+  document.getElementById('t2').classList.toggle('on',t==='register');
+  document.getElementById('loginF').style.display=t==='login'?'block':'none';
+  document.getElementById('regF').style.display=t==='register'?'block':'none';
+}
+
+function doLogin(){
+  const email=document.getElementById('lEmail').value.trim();
+  const pass=document.getElementById('lPass').value;
+  const errEl=document.getElementById('lErr');errEl.style.display='none';
+  if(!email||!pass){errEl.textContent='Fill all fields';errEl.style.display='block';return;}
+  fdb.ref('users').once('value',snap=>{
+    const users=snap.val()||{};
+    const user=Object.values(users).find(u=>{try{return dec(u.email)===email&&dec(u.password)===pass;}catch{return false;}});
+    if(!user){errEl.textContent='Invalid email or password';errEl.style.display='block';return;}
+    currentUser=user;closeModal();launchDashboard();
+  });
+}
+
+function doRegister(){
+  const name=document.getElementById('rName').value.trim();
+  const vehicle=document.getElementById('rVehicle').value.trim().toUpperCase();
+  const email=document.getElementById('rEmail').value.trim();
+  const phone=document.getElementById('rPhone').value.trim();
+  const pass=document.getElementById('rPass').value;
+  const errEl=document.getElementById('rErr');errEl.style.display='none';
+  if(!name||!vehicle||!email||!phone||!pass){errEl.textContent='Fill all fields';errEl.style.display='block';return;}
+  if(pass.length<6){errEl.textContent='Password min 6 characters';errEl.style.display='block';return;}
+  fdb.ref('users').once('value',snap=>{
+    const users=snap.val()||{};
+    if(Object.values(users).some(u=>{try{return dec(u.email)===email;}catch{return false;}})){errEl.textContent='Email already registered';errEl.style.display='block';return;}
+    const uid='u'+Date.now();
+    const userData={uid,name:enc(name),vehicle:enc(vehicle),email:enc(email),phone:enc(phone),password:enc(pass),joined:new Date().toLocaleDateString()};
+    fdb.ref('users/'+uid).set(userData,err=>{
+      if(err){errEl.textContent='Error: '+err.message;errEl.style.display='block';return;}
+      currentUser=userData;closeModal();launchDashboard();
+      // ✅ Show QR code immediately after successful registration
+      setTimeout(()=>showMyQR(true),400);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  QR CODE REGISTRATION SYSTEM
+//  Cost: ₹0 — qrcodejs library via CDN
+//  Each user's QR encodes their unique Firebase uid.
+//  Scanning it at admin side instantly identifies them.
+// ═══════════════════════════════════════════════
+let qrInstance = null;
+
+function showMyQR(isNewRegistration){
+  if(!currentUser){
+    console.warn('showMyQR called but currentUser is null');
+    return;
+  }
+
+  const box=document.getElementById('qrCodeBox');
+  if(!box){
+    console.error('qrCodeBox element not found in DOM.');
+    return;
+  }
+  box.innerHTML='<div style="width:180px;height:180px;display:flex;align-items:center;justify-content:center;color:#94A3B8;font-size:.7rem;">⏳ Generating QR…</div>';
+
+  // ✅ Use a free QR image API instead of a JS library — no CDN script to fail.
+  // Encodes the user's uid as the QR payload (this is what gets scanned).
+  const qrData = encodeURIComponent(currentUser.uid);
+  const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${qrData}&color=0B1220&bgcolor=ffffff`;
+
+  const img = new Image();
+  img.width = 180;
+  img.height = 180;
+  img.alt = 'ITFOS QR Code';
+  img.style.borderRadius = '8px';
+  img.crossOrigin = 'anonymous'; // needed so we can later read it onto a canvas for download
+
+  img.onload = () => {
+    box.innerHTML = '';
+    box.appendChild(img);
+  };
+  img.onerror = () => {
+    box.innerHTML = `<div style="color:#EF4444;font-size:.65rem;padding:20px;line-height:1.5;">
+      ❌ QR image failed to load.<br>Check your internet connection.<br>
+      <span style="color:#94A3B8;">Your ITFOS ID: <b style="color:#F8FAFC;">${currentUser.uid}</b></span>
+    </div>`;
+    showToast2('❌ QR image failed to load — check internet connection.', 'muted');
+  };
+  img.src = qrImgUrl;
+
+  document.getElementById('qrUserName').textContent = dec(currentUser.name);
+  document.getElementById('qrVehicleNo').textContent = dec(currentUser.vehicle);
+
+  if(isNewRegistration){
+    document.querySelector('#qrModalBg .m-sub').textContent =
+      '✅ Registration successful! Save this QR code — scan it at any ITFOS checkpoint for instant identification.';
+  } else {
+    document.querySelector('#qrModalBg .m-sub').textContent =
+      'Scan this QR code at any ITFOS checkpoint for instant identification.';
+  }
+
+  const modalBg = document.getElementById('qrModalBg');
+  if(!modalBg){
+    console.error('qrModalBg element not found in DOM.');
+    return;
+  }
+  modalBg.classList.add('open');
+  modalBg.style.display = 'flex';
+}
+
+function closeQRModal(){
+  const modalBg = document.getElementById('qrModalBg');
+  modalBg.classList.remove('open');
+  modalBg.style.display = 'none';
+}
+
+function downloadQR(){
+  const img = document.querySelector('#qrCodeBox img');
+  if(!img || !img.complete){
+    showToast2('QR code not ready yet, try again in a moment.', 'muted');
+    return;
+  }
+
+  try{
+    // Draw the loaded image onto a canvas so we can export it as a downloadable PNG
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || 180;
+    canvas.height = img.naturalHeight || 180;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+
+    const link = document.createElement('a');
+    link.download = 'ITFOS_QR_' + dec(currentUser.vehicle).replace(/\s+/g,'_') + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast2('📥 QR code downloaded!', 'ok');
+  }catch(err){
+    // Fallback if canvas export is blocked (cross-origin restriction) —
+    // just open the QR image directly so the user can long-press/save it manually
+    console.warn('Canvas export failed, opening image directly instead:', err);
+    window.open(img.src, '_blank');
+    showToast2('Opened QR in new tab — long-press or right-click to save.', 'muted');
+  }
+}
+
+function launchDashboard(){
+  ['heroSec','features','map-sec','how'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('dashboard').style.display='block';
+  const name=dec(currentUser.name);
+  const initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  document.getElementById('navIn').style.display='none';
+  document.getElementById('navUp').style.display='none';
+  document.getElementById('navUser').style.display='flex';
+  document.getElementById('navNm').textContent=name;
+  document.getElementById('navAv').textContent=initials;
+  setTimeout(initUserMap,150);
+  startListening();
+  // Load voices (needs user interaction first on some browsers)
+  speechSynthesis.getVoices();
+}
+
+function logout(){
+  stopSpeaking();
+  if(currentUser)fdb.ref('requests/'+currentUser.uid).remove();
+  if(currentUser&&currentLocKey)fdb.ref('crowd_reports/'+currentLocKey+'/'+currentUser.uid).remove();
+  if(notifListener&&currentUser)fdb.ref('notifications/'+currentUser.uid).off('child_added',notifListener);
+  if(currentLocKey)fdb.ref('crowd_reports/'+currentLocKey).off('value');
+  currentUser=null;notifications=[];routeCount=0;alertCount=0;unread=0;voiceEnabled=false;
+  updateVoiceUI();
+  if(uMap){uMap.remove();uMap=null;}
+  ['heroSec','features','map-sec','how'].forEach(id=>document.getElementById(id).style.display='');
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('crowdCardWrap').style.display='none';
+  document.getElementById('navIn').style.display='';
+  document.getElementById('navUp').style.display='';
+  document.getElementById('navUser').style.display='none';
+  document.getElementById('routeBtn').disabled=false;
+  document.getElementById('routeBtn').textContent='🚀 Get Live Traffic Advisory';
+  currentStart='';currentDest='';currentLocKey='';
+}
+
+// ═══ HELPERS ═══
+function gotoSec(id){document.getElementById(id)?.scrollIntoView({behavior:'smooth'});}
+document.getElementById('modalBg').addEventListener('click',e=>{if(e.target===document.getElementById('modalBg'))closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();stopSpeaking();}});
+window.addEventListener('load',initPreviewMap);
+// Preload voices on page load
+window.speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();
+</script>
+</body>
+</html>
